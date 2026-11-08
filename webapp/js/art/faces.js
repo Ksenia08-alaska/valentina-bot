@@ -77,13 +77,17 @@ export function portrait(who, moodIn, size = 120) {
     </defs>
     <circle cx="60" cy="60" r="54" fill="none" stroke="currentColor" stroke-opacity=".1" stroke-width="6"/>
     ${(() => {
-      // кольцо: каждое чувство — свой цветной отрезок, длина по силе чувства
+      // кольцо: проценты чувств складываются (50% + 50% = полный круг);
+      // если в сумме больше 100% — круг полный, а цвета делят его по силе чувств
       let off = 0, out = '';
-      const per = list.length ? C / list.length : 0;
+      const total = list.reduce((t, m) => t + m.level, 0);
+      const fill = Math.min(total, 100) / 100;
+      const gap = list.length > 1 ? 3 : 0;
       list.forEach((m) => {
-        const len = Math.max(2, per * m.level / 100 - (list.length > 1 ? 4 : 0));
-        out += `<circle cx="60" cy="60" r="54" fill="none" stroke="${m.color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${len.toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}" transform="rotate(-90 60 60)" class="ring"/>`;
-        off += per;
+        const seg = total ? C * fill * m.level / total : 0;
+        const len = Math.max(1.5, seg - gap);
+        out += `<circle cx="60" cy="60" r="54" fill="none" stroke="${m.color}" stroke-width="6" stroke-linecap="${list.length > 1 ? 'butt' : 'round'}" stroke-dasharray="${len.toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}" transform="rotate(-90 60 60)" class="ring"/>`;
+        off += seg;
       });
       return out;
     })()}
