@@ -1,4 +1,4 @@
-import { initData, devUser } from './tg.js';
+import { initData, devUser, appToken } from './tg.js';
 
 const BASE = ((window.APP_CONFIG && window.APP_CONFIG.API_BASE) || '').replace(/\/$/, '');
 
@@ -10,6 +10,7 @@ export async function api(path, { method = 'GET', body } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   const init = initData();
   if (init) headers['X-Init-Data'] = init;
+  else if (appToken) headers['X-App-Token'] = appToken;
   else if (devUser) headers['X-Dev-User'] = devUser;
   let res;
   try {
@@ -31,6 +32,7 @@ export async function avatarURL(uid) {
   const headers = {};
   const init = initData();
   if (init) headers['X-Init-Data'] = init;
+  else if (appToken) headers['X-App-Token'] = appToken;
   else if (devUser) headers['X-Dev-User'] = devUser;
   try {
     const res = await fetch(BASE + '/api/avatar/' + uid, { headers });

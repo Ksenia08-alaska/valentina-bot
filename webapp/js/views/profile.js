@@ -8,7 +8,8 @@ import { haptic } from '../tg.js';
 let root = null, offs = [];
 
 const THEMES = [
-  ['auto', 'Как в Telegram', 'linear-gradient(135deg,#FFF5F7 50%,#170F1C 50%)', '#FF5C8A'],
+  ['dusk', 'Сумерки', 'linear-gradient(135deg,#130F17,#3A2036)', '#F2A1B5'],
+  ['auto', 'Как в Telegram', 'linear-gradient(135deg,#FFF5F7 50%,#130F17 50%)', '#F2A1B5'],
   ['light', 'Светлая', 'linear-gradient(135deg,#FFF5F7,#FFE3EB)', '#FF5C8A'],
   ['dark', 'Тёмная', 'linear-gradient(135deg,#1E1424,#2A1D32)', '#FF79A3'],
   ['peach', 'Персик', 'linear-gradient(135deg,#FFF4EC,#FFD9C2)', '#FF7A59'],

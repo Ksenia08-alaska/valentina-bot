@@ -1,6 +1,6 @@
 import { api, ApiError } from './api.js';
 import { S, emit, on, loadAvatar } from './state.js';
-import { setupTelegram, tgColorScheme, onTgThemeChange, setHeaderColor, haptic, tg, devUser } from './tg.js';
+import { setupTelegram, tgColorScheme, onTgThemeChange, setHeaderColor, haptic, tg, devUser, appToken } from './tg.js';
 import { $, $$, toast, esc } from './ui.js';
 import { icon } from './art/icons.js';
 import { coupleHero } from './art/couple.js';
@@ -22,9 +22,9 @@ let current = null;
 
 // ---------- тема ----------
 export function applyTheme(theme) {
-  const t = theme === 'auto' || !theme ? tgColorScheme() : theme;
+  const t = !theme ? 'dusk' : theme === 'auto' ? (tgColorScheme() === 'dark' ? 'dusk' : 'light') : theme;
   document.documentElement.dataset.theme = t;
-  try { localStorage.setItem('theme', theme || 'auto'); } catch (e) { /* */ }
+  try { localStorage.setItem('theme', theme || 'dusk'); } catch (e) { /* */ }
   requestAnimationFrame(() => {
     const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
     if (bg) setHeaderColor(bg);
@@ -87,10 +87,10 @@ function showFatal(title, text) {
 async function boot() {
   setupTelegram();
   let saved = 'auto';
-  try { saved = localStorage.getItem('theme') || 'auto'; } catch (e) { /* */ }
+  try { saved = localStorage.getItem('theme') || 'dusk'; } catch (e) { /* */ }
   applyTheme(saved);
 
-  if (!tg?.initData && !devUser) {
+  if (!tg?.initData && !devUser && !appToken) {
     showFatal('Открой приложение из Telegram', 'Это наше маленькое приложение живёт внутри бота. Открой его по кнопке в чате с ботом.');
     return;
   }

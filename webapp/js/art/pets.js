@@ -1,351 +1,325 @@
-// Рисованные питомцы (чистый SVG, без стикеров и эмодзи).
-// petSVG(species, {stage: 0..6, mood: 'happy'|'love'|'sleep'|'hungry'|'sad'|'dirty'|'tired'|'eat'})
+// Питомцы в мягком современном стиле (чистый SVG, без стикеров и эмодзи).
+// petSVG(species, {stage: 0..6, mood: 'happy'|'love'|'sleep'|'hungry'|'sad'|'dirty'|'tired'|'eat'|'play'})
 
 const PAL = {
-  cat_ginger:  { main: '#F7A24E', dark: '#B8621F', belly: '#FFE9CF', mark: '#E37E2C', nose: '#F27A8A', inner: '#FFC2C7' },
-  cat_gray:    { main: '#AEB6C8', dark: '#646C82', belly: '#F1F2F7', mark: '#8A93A8', nose: '#E98597', inner: '#F6C6D0' },
-  cat_white:   { main: '#FFFFFF', dark: '#B59AA6', belly: '#FFF7F2', mark: '#F5B871', nose: '#F28AA0', inner: '#FFD0DA' },
-  dog_corgi:   { main: '#F3A65E', dark: '#B0652A', belly: '#FFF7EC', mark: '#E58C42', nose: '#4A3530', inner: '#FFC9B5' },
-  dog_samoyed: { main: '#FFFFFF', dark: '#B4A49A', belly: '#FFF9F2', mark: '#F1E6DA', nose: '#3F3434', inner: '#FFD3D3' },
-  hamster:     { main: '#F5C27E', dark: '#B37A35', belly: '#FFF6E6', mark: '#EAA85A', nose: '#F28A9A', inner: '#FFC8C8' },
-  raccoon:     { main: '#A4A6B4', dark: '#5D5F6F', belly: '#F2F2F6', mark: '#4C4E5C', nose: '#33333D', inner: '#E8D3DA' },
-  parrot:      { main: '#7ED37F', dark: '#3E8B4C', belly: '#E9F98E', mark: '#4BB0E8', nose: '#F49B3C', inner: '#FFE36E' },
-  turtle:      { main: '#9ED57C', dark: '#4E8A3A', belly: '#F4E7B8', mark: '#5FA357', nose: '#E58897', inner: '#C79A62' },
+  cat_ginger:  { main: '#F4B07A', shade: '#D98A55', light: '#FFF1E4', mark: '#E39360', inner: '#F8C6C6', nose: '#E9899A' },
+  cat_gray:    { main: '#B9BFCD', shade: '#8F96A8', light: '#F3F4F8', mark: '#9AA1B3', inner: '#F2C9D2', nose: '#DE8D9E' },
+  cat_white:   { main: '#FBF7F4', shade: '#DCCFD1', light: '#FFFFFF', mark: '#F0C38F', inner: '#F8CFD8', nose: '#EC97A8' },
+  dog_corgi:   { main: '#F0B27E', shade: '#D18C57', light: '#FFF6EC', mark: '#E89D63', inner: '#F6C9B8', nose: '#4A3A3E' },
+  dog_samoyed: { main: '#FBF8F5', shade: '#D9D0CB', light: '#FFFFFF', mark: '#EFE6DE', inner: '#F6D2D4', nose: '#4A3A3E' },
+  hamster:     { main: '#F2C48E', shade: '#D9A266', light: '#FFF6E8', mark: '#E6AE72', inner: '#F6C3C3', nose: '#E9899A' },
+  raccoon:     { main: '#B3B4C0', shade: '#878897', light: '#F4F4F7', mark: '#5F6070', inner: '#E9D3DA', nose: '#3E3D48' },
+  parrot:      { main: '#9FDCA0', shade: '#6BB27A', light: '#F2F7C4', mark: '#8FC8EE', inner: '#FFE08A', nose: '#F2B27A' },
+  turtle:      { main: '#B4DE9B', shade: '#83B86C', light: '#F6EBC6', mark: '#8CC07B', inner: '#6FA868', nose: '#E58897' },
 };
 
-const INK = '#3B2B33';
-const W = 3.2; // толщина контура
-
+const EYE = '#2C2230';
+let UID = 0;
 const f = (n) => Math.round(n * 10) / 10;
 
-function ell(cx, cy, rx, ry, fill, stroke, extra = '') {
-  return `<ellipse cx="${f(cx)}" cy="${f(cy)}" rx="${f(rx)}" ry="${f(ry)}" fill="${fill}"${stroke ? ` stroke="${stroke}" stroke-width="${W}"` : ''} ${extra}/>`;
+function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function mix(a, b, t) {
+  const A = hexToRgb(a), B = hexToRgb(b);
+  return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join('');
 }
 
-// пушистый круг (самоед, хвосты)
-function fluffy(cx, cy, rx, ry, n, fill, stroke, extra = '') {
-  let d = '';
+function defs(id, c) {
+  return `<defs>
+    <radialGradient id="${id}b" cx=".38" cy=".3" r=".8"><stop offset="0" stop-color="${mix(c.main, '#FFFFFF', .45)}"/><stop offset=".6" stop-color="${c.main}"/><stop offset="1" stop-color="${c.shade}"/></radialGradient>
+    <radialGradient id="${id}l" cx=".5" cy=".35" r=".7"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="${c.light}"/></radialGradient>
+    <radialGradient id="${id}k" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#FF8FAA" stop-opacity=".6"/><stop offset="1" stop-color="#FF8FAA" stop-opacity="0"/></radialGradient>
+    <linearGradient id="${id}e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2A2030"/><stop offset="1" stop-color="#4E3D58"/></linearGradient>
+  </defs>`;
+}
+
+const edge = (c) => `stroke="${c.shade}" stroke-opacity=".35" stroke-width="1.5"`;
+function ell(cx, cy, rx, ry, fill, extra = '') {
+  return `<ellipse cx="${f(cx)}" cy="${f(cy)}" rx="${f(rx)}" ry="${f(ry)}" fill="${fill}" ${extra}/>`;
+}
+// пушистый контур (самоед)
+function fluffy(cx, cy, rx, ry, n, fill, extra = '') {
   const pts = [];
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 - Math.PI / 2;
     pts.push([cx + rx * Math.cos(a), cy + ry * Math.sin(a)]);
   }
-  const br = (Math.PI * (rx + ry) / n) * 0.62;
-  d = `M${f(pts[0][0])},${f(pts[0][1])}`;
-  for (let i = 1; i <= n; i++) {
-    const p = pts[i % n];
-    d += ` A${f(br)},${f(br)} 0 0 1 ${f(p[0])},${f(p[1])}`;
-  }
-  return `<path d="${d}Z" fill="${fill}" stroke="${stroke}" stroke-width="${W}" stroke-linejoin="round" ${extra}/>`;
+  const br = (Math.PI * (rx + ry) / n) * 0.58;
+  let d = `M${f(pts[0][0])},${f(pts[0][1])}`;
+  for (let i = 1; i <= n; i++) { const p = pts[i % n]; d += ` A${f(br)},${f(br)} 0 0 1 ${f(p[0])},${f(p[1])}`; }
+  return `<path d="${d}Z" fill="${fill}" ${extra}/>`;
+}
+// треугольник со скруглёнными углами
+function softTri(p1, p2, p3, fill, r = 7, extra = '') {
+  const d = `M${f(p1[0])},${f(p1[1])} L${f(p2[0])},${f(p2[1])} L${f(p3[0])},${f(p3[1])}Z`;
+  return `<path d="${d}" fill="${fill}" stroke="${fill}" stroke-width="${r}" stroke-linejoin="round" ${extra}/>`;
 }
 
 // ---------- лицо ----------
-function eyes(mood, hx, hy, hr, big, c) {
-  const ex = hr * 0.4, ey = hy + hr * 0.08, er = hr * (big ? 0.155 : 0.13);
+function eyes(id, mood, hx, hy, hr, big) {
+  const ex = hr * 0.4, ey = hy + hr * 0.14, rx = hr * (big ? 0.15 : 0.135), ry = rx * 1.18;
   const L = hx - ex, R = hx + ex;
-  const closed = (x) => `<path d="M${f(x - er)},${f(ey)} q${f(er)},${f(er * 0.9)} ${f(er * 2)},0" fill="none" stroke="${INK}" stroke-width="3.2" stroke-linecap="round"/>`;
-  const happy = (x) => `<path d="M${f(x - er)},${f(ey + er * 0.3)} q${f(er)},${f(-er * 1.5)} ${f(er * 2)},0" fill="none" stroke="${INK}" stroke-width="3.4" stroke-linecap="round"/>`;
-  const open = (x) => `<g class="pet-eye"><ellipse cx="${f(x)}" cy="${f(ey)}" rx="${f(er)}" ry="${f(er * 1.12)}" fill="${INK}"/>`
-    + `<circle cx="${f(x + er * 0.35)}" cy="${f(ey - er * 0.42)}" r="${f(er * 0.42)}" fill="#fff"/>`
-    + `<circle cx="${f(x - er * 0.4)}" cy="${f(ey + er * 0.45)}" r="${f(er * 0.18)}" fill="#fff"/></g>`;
-  const half = (x) => `<g><ellipse cx="${f(x)}" cy="${f(ey + er * 0.2)}" rx="${f(er)}" ry="${f(er * 0.7)}" fill="${INK}"/>`
-    + `<path d="M${f(x - er * 1.25)},${f(ey - er * 0.25)} h${f(er * 2.5)}" stroke="${c.main === '#FFFFFF' ? c.dark : c.main}" stroke-width="${f(er * 1.1)}" stroke-linecap="round"/>`
-    + `<circle cx="${f(x + er * 0.3)}" cy="${f(ey + er * 0.25)}" r="${f(er * 0.3)}" fill="#fff"/></g>`;
-  const heart = (x) => `<path transform="translate(${f(x)},${f(ey)}) scale(${f(er / 9)})" d="M0,6 C-9,0 -10,-8 -4.5,-9 C-1.5,-9.5 0,-7 0,-5 C0,-7 1.5,-9.5 4.5,-9 C10,-8 9,0 0,6Z" fill="#F2557A"/>`;
+  const arc = (x, up) => `<path d="M${f(x - rx * 1.05)},${f(ey + (up ? rx * 0.3 : 0))} q${f(rx * 1.05)},${f(up ? -rx * 1.4 : rx * 0.9)} ${f(rx * 2.1)},0" fill="none" stroke="${EYE}" stroke-width="2.6" stroke-linecap="round"/>`;
+  const open = (x) => `<g class="pet-eye"><ellipse cx="${f(x)}" cy="${f(ey)}" rx="${f(rx)}" ry="${f(ry)}" fill="url(#${id}e)"/>`
+    + `<ellipse cx="${f(x + rx * 0.3)}" cy="${f(ey - ry * 0.38)}" rx="${f(rx * 0.42)}" ry="${f(rx * 0.38)}" fill="#fff"/>`
+    + `<circle cx="${f(x - rx * 0.38)}" cy="${f(ey + ry * 0.42)}" r="${f(rx * 0.17)}" fill="#fff" opacity=".85"/></g>`;
+  const heavy = (x) => `<g><ellipse cx="${f(x)}" cy="${f(ey + ry * 0.25)}" rx="${f(rx)}" ry="${f(ry * 0.62)}" fill="url(#${id}e)"/><path d="M${f(x - rx * 1.1)},${f(ey - ry * 0.1)} q${f(rx * 1.1)},${f(ry * 0.25)} ${f(rx * 2.2)},0" stroke="${EYE}" stroke-width="2.2" fill="none" stroke-linecap="round"/><circle cx="${f(x + rx * 0.3)}" cy="${f(ey + ry * 0.2)}" r="${f(rx * 0.25)}" fill="#fff"/></g>`;
+  const heart = (x) => `<path transform="translate(${f(x)},${f(ey)}) scale(${f(rx / 8)})" d="M0,6 C-9,0 -10,-8 -4.5,-9 C-1.5,-9.5 0,-7 0,-5 C0,-7 1.5,-9.5 4.5,-9 C10,-8 9,0 0,6Z" fill="#F2768F"/>`;
   let out;
   switch (mood) {
-    case 'sleep': out = closed(L) + closed(R); break;
+    case 'sleep': out = arc(L, false) + arc(R, false); break;
     case 'love': out = heart(L) + heart(R); break;
-    case 'eat': case 'play': out = happy(L) + happy(R); break;
-    case 'tired': out = half(L) + half(R); break;
+    case 'eat': case 'play': out = arc(L, true) + arc(R, true); break;
+    case 'tired': out = heavy(L) + heavy(R); break;
     default: out = open(L) + open(R);
   }
   if (mood === 'sad' || mood === 'hungry') {
-    // грустные бровки
-    out += `<path d="M${f(L - er * 1.1)},${f(ey - er * 1.45)} l${f(er * 1.7)},${f(-er * 0.6)}" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/>`
-      + `<path d="M${f(R + er * 1.1)},${f(ey - er * 1.45)} l${f(-er * 1.7)},${f(-er * 0.6)}" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/>`;
+    out += `<path d="M${f(L - rx)},${f(ey - ry * 1.5)} q${f(rx)},${f(-ry * 0.5)} ${f(rx * 1.8)},${f(-ry * 0.2)}" stroke="${EYE}" stroke-opacity=".7" stroke-width="2" fill="none" stroke-linecap="round"/>`
+      + `<path d="M${f(R + rx)},${f(ey - ry * 1.5)} q${f(-rx)},${f(-ry * 0.5)} ${f(-rx * 1.8)},${f(-ry * 0.2)}" stroke="${EYE}" stroke-opacity=".7" stroke-width="2" fill="none" stroke-linecap="round"/>`;
   }
-  if (mood === 'sad') {
-    out += `<path class="pet-tear" d="M${f(R + er * 0.9)},${f(ey + er)} q${f(er * 0.6)},${f(er * 1.2)} 0,${f(er * 1.6)} q${f(-er * 0.6)},${f(-er * 0.4)} 0,${f(-er * 1.6)}Z" fill="#8FD0FF"/>`;
-  }
+  if (mood === 'sad') out += `<path class="pet-tear" d="M${f(R + rx * 0.6)},${f(ey + ry)} q${f(rx * 0.5)},${f(ry)} 0,${f(ry * 1.3)} q${f(-rx * 0.5)},${f(-ry * 0.3)} 0,${f(-ry * 1.3)}Z" fill="#9FD6FF"/>`;
   return out;
 }
 
-function cheeks(hx, hy, hr) {
-  return ell(hx - hr * 0.66, hy + hr * 0.36, hr * 0.17, hr * 0.1, '#FF8FA8', null, 'opacity=".55"')
-    + ell(hx + hr * 0.66, hy + hr * 0.36, hr * 0.17, hr * 0.1, '#FF8FA8', null, 'opacity=".55"');
+function nose(c, kind, hx, hy, hr) {
+  const ny = hy + hr * 0.36;
+  if (kind === 'dog') {
+    return `<ellipse cx="${f(hx)}" cy="${f(ny)}" rx="${f(hr * 0.12)}" ry="${f(hr * 0.085)}" fill="${c.nose}"/><ellipse cx="${f(hx - hr * 0.03)}" cy="${f(ny - hr * 0.03)}" rx="${f(hr * 0.04)}" ry="${f(hr * 0.022)}" fill="#fff" opacity=".6"/>`;
+  }
+  const s = hr * 0.075;
+  return `<path d="M${f(hx - s)},${f(ny - s * 0.5)} Q${f(hx)},${f(ny - s * 0.9)} ${f(hx + s)},${f(ny - s * 0.5)} Q${f(hx + s * 0.6)},${f(ny + s * 0.8)} ${f(hx)},${f(ny + s * 0.9)} Q${f(hx - s * 0.6)},${f(ny + s * 0.8)} ${f(hx - s)},${f(ny - s * 0.5)}Z" fill="${c.nose}"/>`;
 }
 
-function mouth(kind, mood, hx, hy, hr, c) {
-  const ny = hy + hr * 0.3, my = ny + hr * 0.12;
-  const s = hr * 0.13;
-  let out = '';
-  // нос
-  if (kind === 'dog') {
-    out += `<ellipse cx="${f(hx)}" cy="${f(ny)}" rx="${f(hr * 0.13)}" ry="${f(hr * 0.09)}" fill="${c.nose}"/><ellipse cx="${f(hx - hr * 0.04)}" cy="${f(ny - hr * 0.03)}" rx="${f(hr * 0.04)}" ry="${f(hr * 0.025)}" fill="#fff" opacity=".7"/>`;
-  } else {
-    out += `<path d="M${f(hx - s * 0.75)},${f(ny - s * 0.35)} h${f(s * 1.5)} q0,${f(s * 0.5)} ${f(-s * 0.75)},${f(s * 0.9)} q${f(-s * 0.75)},${f(-s * 0.4)} ${f(-s * 0.75)},${f(-s * 0.9)}Z" fill="${c.nose}"/>`;
-  }
+function mouth(c, kind, mood, hx, hy, hr) {
+  const my = hy + hr * 0.47, s = hr * 0.11;
+  const col = mix(c.shade, EYE, .5);
   if (mood === 'hungry' || mood === 'eat') {
-    out += `<ellipse cx="${f(hx)}" cy="${f(my + s * 0.8)}" rx="${f(s * 0.85)}" ry="${f(s * (mood === 'eat' ? 0.6 : 0.95))}" fill="#8A3B4A" stroke="${INK}" stroke-width="2"/>`;
-    if (mood === 'eat') out += `<ellipse cx="${f(hx)}" cy="${f(my + s * 1.05)}" rx="${f(s * 0.5)}" ry="${f(s * 0.3)}" fill="#FF8FA8"/>`;
-    return out;
+    return `<ellipse cx="${f(hx)}" cy="${f(my + s * 0.6)}" rx="${f(s * 0.75)}" ry="${f(s * (mood === 'eat' ? 0.55 : 0.85))}" fill="#9B4A5E"/>`
+      + `<ellipse cx="${f(hx)}" cy="${f(my + s * 0.95)}" rx="${f(s * 0.45)}" ry="${f(s * 0.28)}" fill="#F48FA6"/>`;
   }
   if (mood === 'sad' || mood === 'tired') {
-    out += `<path d="M${f(hx - s)},${f(my + s * 1.1)} q${f(s)},${f(-s * 0.9)} ${f(s * 2)},0" fill="none" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/>`;
-    return out;
+    return `<path d="M${f(hx - s * 0.8)},${f(my + s * 0.9)} q${f(s * 0.8)},${f(-s * 0.7)} ${f(s * 1.6)},0" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round"/>`;
   }
-  // «w»-ротик
-  out += `<path d="M${f(hx - s * 1.4)},${f(my)} q${f(s * 0.7)},${f(s * 0.9)} ${f(s * 1.4)},0 q${f(s * 0.7)},${f(s * 0.9)} ${f(s * 1.4)},0" fill="none" stroke="${INK}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+  let out = `<path d="M${f(hx - s * 1.3)},${f(my)} q${f(s * 0.65)},${f(s * 0.8)} ${f(s * 1.3)},0 q${f(s * 0.65)},${f(s * 0.8)} ${f(s * 1.3)},0" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
   if (kind === 'dog' && mood !== 'sleep') {
-    out += `<path class="pet-tongue" d="M${f(hx - s * 0.55)},${f(my + s * 0.3)} v${f(s * 0.7)} a${f(s * 0.55)},${f(s * 0.55)} 0 0 0 ${f(s * 1.1)},0 v${f(-s * 0.7)}Z" fill="#FF7E95" stroke="${INK}" stroke-width="2"/>`;
+    out += `<path class="pet-tongue" d="M${f(hx - s * 0.5)},${f(my + s * 0.35)} v${f(s * 0.5)} a${f(s * 0.5)},${f(s * 0.5)} 0 0 0 ${f(s)},0 v${f(-s * 0.5)}Z" fill="#F48FA6"/>`;
   }
   return out;
 }
 
-// ---------- аксессуары по стадиям ----------
-function accessories(stage, hx, hy, hr, bx, bTop, brx) {
+function blush(id, hx, hy, hr) {
+  return ell(hx - hr * 0.64, hy + hr * 0.4, hr * 0.2, hr * 0.13, `url(#${id}k)`) + ell(hx + hr * 0.64, hy + hr * 0.4, hr * 0.2, hr * 0.13, `url(#${id}k)`);
+}
+
+// ---------- аккуратные аксессуары по стадиям ----------
+function bowAt(x, y, s = 1, rot = 0, col = '#F2A1B5') {
+  return `<g transform="translate(${f(x)},${f(y)}) rotate(${rot}) scale(${s})"><path d="M0,0 C-6,-8 -14,-6 -13,0 C-14,6 -6,8 0,0Z" fill="${col}"/><path d="M0,0 C6,-8 14,-6 13,0 C14,6 6,8 0,0Z" fill="${col}"/><circle r="3.2" fill="${mix(col, '#B04A6A', .35)}"/></g>`;
+}
+function collar(hx, y, w, col, tag) {
+  if (y < -500) return '';
+  let out = `<path d="M${f(hx - w)},${f(y - 4)} Q${f(hx)},${f(y + 5)} ${f(hx + w)},${f(y - 4)}" fill="none" stroke="${col}" stroke-width="4.5" stroke-linecap="round"/>`;
+  if (tag === 'bow') out += bowAt(hx, y + 1, 0.7, 0, col);
+  if (tag === 'heart') out += `<path transform="translate(${f(hx)},${f(y + 7)}) scale(.62)" d="M0,8 C-11,0 -11,-9 -5,-10 C-2,-10.5 0,-8 0,-6 C0,-8 2,-10.5 5,-10 C11,-9 11,0 0,8Z" fill="#F1CF8E"/>`;
+  return out;
+}
+function accessories(stage, hx, hy, hr, neckY, neckW, earX, earY, noCollar = false) {
   let out = '';
-  const neckY = bTop + 6;
-  if (stage === 0) {
-    // соска
-    const y = hy + hr * 0.52;
-    out += `<circle cx="${f(hx)}" cy="${f(y + 9)}" r="8" fill="none" stroke="#7FC8F8" stroke-width="3.4"/>`
-      + `<ellipse cx="${f(hx)}" cy="${f(y)}" rx="${f(hr * 0.24)}" ry="${f(hr * 0.12)}" fill="#BDE3FF" stroke="${INK}" stroke-width="2.4"/>`;
+  if (noCollar) {
+    if (stage >= 2 && stage <= 4) out += bowAt(earX, earY, 0.85, 20, stage === 4 ? '#C9B3EA' : '#F2A1B5');
+    if (stage < 5) return out;
+    neckY = -999;
   }
-  if (stage === 1) {
-    // бантик на ушке
-    const x = hx + hr * 0.55, y = hy - hr * 0.72;
-    out += `<g transform="translate(${f(x)},${f(y)}) rotate(20)"><path d="M0,0 L-13,-8 Q-16,0 -13,8Z M0,0 L13,-8 Q16,0 13,8Z" fill="#FF8FB1" stroke="${INK}" stroke-width="2.2" stroke-linejoin="round"/><circle r="4.2" fill="#FF6F9A" stroke="${INK}" stroke-width="2"/></g>`;
-  }
-  if (stage === 2) {
-    // банданка
-    out += `<path d="M${f(bx - brx * 0.75)},${f(neckY - 4)} Q${f(bx)},${f(neckY + 8)} ${f(bx + brx * 0.75)},${f(neckY - 4)} L${f(bx)},${f(neckY + 24)}Z" fill="#6EC6FF" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>`
-      + `<circle cx="${f(bx - 6)}" cy="${f(neckY + 6)}" r="2" fill="#fff"/><circle cx="${f(bx + 7)}" cy="${f(neckY + 4)}" r="2" fill="#fff"/><circle cx="${f(bx)}" cy="${f(neckY + 14)}" r="2" fill="#fff"/>`;
-  }
-  if (stage === 3) {
-    // шарфик в полоску
-    out += `<path d="M${f(bx - brx * 0.82)},${f(neckY - 6)} Q${f(bx)},${f(neckY + 10)} ${f(bx + brx * 0.82)},${f(neckY - 6)} l2,9 Q${f(bx)},${f(neckY + 20)} ${f(bx - brx * 0.82 - 2)},${f(neckY + 3)}Z" fill="#FF7A8A" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>`
-      + `<path d="M${f(bx + brx * 0.35)},${f(neckY + 6)} l6,26 l12,-3 l-6,-24Z" fill="#FF7A8A" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>`
-      + `<path d="M${f(bx + brx * 0.35 + 3)},${f(neckY + 16)} l12,-3 M${f(bx + brx * 0.35 + 5)},${f(neckY + 24)} l12,-3" stroke="#fff" stroke-width="3"/>`;
-  }
-  if (stage >= 4) {
-    // ошейник с сердечком
-    out += `<path d="M${f(bx - brx * 0.72)},${f(neckY - 3)} Q${f(bx)},${f(neckY + 9)} ${f(bx + brx * 0.72)},${f(neckY - 3)}" fill="none" stroke="#E2475F" stroke-width="7" stroke-linecap="round"/>`
-      + `<path transform="translate(${f(bx)},${f(neckY + 12)}) scale(.95)" d="M0,8 C-11,0 -11,-9 -5,-10 C-2,-10.5 0,-8 0,-6 C0,-8 2,-10.5 5,-10 C11,-9 11,0 0,8Z" fill="#FFD25E" stroke="${INK}" stroke-width="2.2"/>`;
-  }
+  if (stage === 2) out += bowAt(earX, earY, 0.85, 20);
+  if (stage === 3) out += collar(hx, neckY, neckW, '#F2A1B5', 'bow');
+  if (stage === 4) out += collar(hx, neckY, neckW, '#E68FA5', 'heart') + bowAt(earX, earY, 0.75, 20, '#C9B3EA');
   if (stage === 5) {
-    // венок из цветов
+    out += collar(hx, neckY, neckW, '#E68FA5', 'heart');
     for (let i = -2; i <= 2; i++) {
-      const a = (-90 + i * 24) * Math.PI / 180;
-      const x = hx + Math.cos(a) * hr * 0.98, y = hy + Math.sin(a) * hr * 0.98;
-      const col = ['#FF8FB1', '#FFD25E', '#B79CFF', '#FFD25E', '#FF8FB1'][i + 2];
-      out += `<g transform="translate(${f(x)},${f(y)})">${[0, 72, 144, 216, 288].map(r => `<ellipse transform="rotate(${r}) translate(0,-5)" rx="3.6" ry="5" fill="${col}" stroke="${INK}" stroke-width="1.4"/>`).join('')}<circle r="2.8" fill="#fff" stroke="${INK}" stroke-width="1.2"/></g>`;
+      const a = (-90 + i * 22) * Math.PI / 180;
+      const x = hx + Math.cos(a) * hr * 0.92, y = hy - hr * 0.08 + Math.sin(a) * hr * 0.9;
+      const col = ['#F7C6D3', '#FFF3D6', '#D9C8F2', '#FFF3D6', '#F7C6D3'][i + 2];
+      out += `<g transform="translate(${f(x)},${f(y)})">${[0, 72, 144, 216, 288].map((r) => `<ellipse transform="rotate(${r}) translate(0,-4.2)" rx="3" ry="4.2" fill="${col}"/>`).join('')}<circle r="2.3" fill="#F1CF8E"/></g>`;
     }
   }
   if (stage === 6) {
-    // корона
-    const y = hy - hr * 0.95;
-    out += `<g transform="translate(${f(hx)},${f(y)}) rotate(-8)"><path d="M-17,6 L-20,-12 L-9,-3 L0,-17 L9,-3 L20,-12 L17,6Z" fill="#FFD25E" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>`
-      + `<circle cx="0" cy="-1" r="3" fill="#FF6F9A"/><circle cx="-11" cy="1" r="2.2" fill="#6EC6FF"/><circle cx="11" cy="1" r="2.2" fill="#6EC6FF"/></g>`;
+    out += collar(hx, neckY, neckW, '#E68FA5', 'heart');
+    const y = hy - hr * 0.9;
+    out += `<g transform="translate(${f(hx + hr * 0.12)},${f(y)}) rotate(-6)"><path d="M-15,5 L-17,-9 L-8,-2 L0,-14 L8,-2 L17,-9 L15,5Z" fill="#F1CF8E" stroke="#D9A85A" stroke-width="1.6" stroke-linejoin="round"/><circle cy="-1" r="2.6" fill="#F2A1B5"/><circle cx="-10" cy="1.5" r="1.8" fill="#C9B3EA"/><circle cx="10" cy="1.5" r="1.8" fill="#C9B3EA"/></g>`;
   }
   return out;
 }
 
-// ---------- общий «пушистик» (коты, собаки, енот, хомяк) ----------
-function furry(species, stage, mood) {
+// ---------- пушистики: коты, собаки, енот, хомяк ----------
+function furry(id, species, stage, mood) {
   const c = PAL[species];
   const t = stage / 6;
-  const isHamster = species === 'hamster';
+  const isHam = species === 'hamster';
   const kind = species.startsWith('dog') ? 'dog' : 'cat';
-  const G = 92; // земля
-  const hr = isHamster ? 0 : 47 - 8 * t;
-  const brx = isHamster ? 50 + 10 * t : 31 + 14 * t;
-  const bry = isHamster ? 44 + 8 * t : 27 + 15 * t;
-  const bx = 0, by = G - bry;
-  const bTop = by - bry;
-  const hx = 0, hy = isHamster ? by - bry * 0.18 : bTop - hr * 0.42;
   const fluff = species === 'dog_samoyed';
-  let back = '', bodyS = '', front = '';
+  const G = 92;
+  const hr = 46 - 8 * t;
+  const brx = isHam ? 52 + 8 * t : 29 + 14 * t, bry = isHam ? 46 + 6 * t : 26 + 15 * t;
+  const by = G - bry, bTop = by - bry;
+  const hx = 0, hy = isHam ? by - bry * 0.12 : bTop - hr * 0.4;
+  const H = isHam ? brx * 0.62 : hr;
+  const E = edge(c);
+  let back = '', body = '', head = '';
 
-  // --- хвост ---
-  const tb = `class="pet-tail" style="transform-origin:${f(bx + brx * 0.7)}px ${f(G - 10)}px"`;
+  // хвост
+  const tailO = `class="pet-tail" style="transform-origin:${f(brx * 0.7)}px ${f(G - 10)}px"`;
   if (species.startsWith('cat')) {
-    const p = `M${f(brx * 0.7)},${f(G - 10)} C${f(brx + 30)},${f(G - 6)} ${f(brx + 36)},${f(by - 30)} ${f(brx + 16)},${f(by - 44)}`;
-    back += `<g ${tb}><path d="${p}" fill="none" stroke="${c.dark}" stroke-width="19" stroke-linecap="round"/><path d="${p}" fill="none" stroke="${c.main}" stroke-width="12.5" stroke-linecap="round"/>`;
-    if (species !== 'cat_white') back += `<path d="M${f(brx + 24)},${f(G - 22)} l9,-3 M${f(brx + 27)},${f(by - 12)} l10,1" stroke="${c.mark}" stroke-width="5" stroke-linecap="round"/>`;
-    back += `</g>`;
+    const p = `M${f(brx * 0.6)},${f(G - 8)} C${f(brx + 28)},${f(G - 4)} ${f(brx + 34)},${f(by - 26)} ${f(brx + 14)},${f(by - 42)}`;
+    back += `<g ${tailO}><path d="${p}" fill="none" stroke="${c.shade}" stroke-width="14" stroke-linecap="round" opacity=".55"/><path d="${p}" fill="none" stroke="${c.main}" stroke-width="11" stroke-linecap="round"/>`;
+    if (species !== 'cat_white') back += `<path d="M${f(brx + 22)},${f(G - 20)} l7,-2 M${f(brx + 26)},${f(by - 12)} l8,1" stroke="${c.mark}" stroke-width="4" stroke-linecap="round" opacity=".8"/>`;
+    back += '</g>';
   } else if (species === 'dog_corgi') {
-    back += `<g ${tb}>${fluffy(brx * 0.92, G - 22, 13, 11, 7, c.main, c.dark)}</g>`;
-  } else if (species === 'dog_samoyed') {
-    back += `<g ${tb}>${fluffy(brx * 0.8, by - bry * 0.35, 20, 18, 9, c.main, c.dark)}${fluffy(brx * 0.8, by - bry * 0.35, 10, 9, 6, c.mark, 'none')}</g>`;
+    back += `<g ${tailO}>${fluffy(brx * 0.9, G - 22, 12, 10, 7, `url(#${id}b)`)}</g>`;
+  } else if (fluff) {
+    back += `<g ${tailO}>${fluffy(brx * 0.78, by - bry * 0.35, 19, 17, 9, `url(#${id}b)`, E)}</g>`;
   } else if (species === 'raccoon') {
-    back += `<g ${tb}><g transform="translate(${f(brx * 0.9)},${f(G - 24)}) rotate(-40)">`
-      + `<ellipse cx="0" cy="-22" rx="15" ry="30" fill="${c.main}" stroke="${c.dark}" stroke-width="${W}"/>`
-      + `<path d="M-14,-30 Q0,-24 14,-30 M-14.5,-15 Q0,-9 14.5,-15 M-12,0 Q0,6 12,0" stroke="${c.mark}" stroke-width="6.5" fill="none"/>`
-      + `<ellipse cx="0" cy="-47" rx="8" ry="6" fill="${c.mark}"/></g></g>`;
+    back += `<g ${tailO}><g transform="translate(${f(brx * 0.88)},${f(G - 22)}) rotate(-38)"><ellipse cx="0" cy="-22" rx="14" ry="29" fill="url(#${id}b)"/><path d="M-13,-31 Q0,-25 13,-31 M-14,-16 Q0,-10 14,-16 M-11,-1 Q0,5 11,-1" stroke="${c.mark}" stroke-width="6" fill="none" stroke-linecap="round" opacity=".85"/><ellipse cx="0" cy="-46" rx="7" ry="5.5" fill="${c.mark}"/></g></g>`;
   }
+  // задние лапки
+  if (!isHam) back += ell(-brx * 0.76, G - 8, 14 + 3 * t, 9.5, `url(#${id}b)`, E) + ell(brx * 0.76, G - 8, 14 + 3 * t, 9.5, `url(#${id}b)`, E);
+  else back += ell(-brx * 0.5, G - 3, 11, 6.5, c.nose) + ell(brx * 0.5, G - 3, 11, 6.5, c.nose);
 
-  // --- задние лапки ---
-  if (!isHamster) {
-    back += ell(bx - brx * 0.78, G - 9, 15 + 3 * t, 10, c.main, c.dark) + ell(bx + brx * 0.78, G - 9, 15 + 3 * t, 10, c.main, c.dark);
-  } else {
-    back += ell(bx - brx * 0.55, G - 3, 12, 7, c.nose, c.dark) + ell(bx + brx * 0.55, G - 3, 12, 7, c.nose, c.dark);
-  }
-
-  // --- тело ---
-  bodyS += fluff ? fluffy(bx, by, brx + 4, bry + 2, 13, c.main, c.dark) : ell(bx, by, brx, bry, c.main, c.dark);
-  bodyS += ell(bx, by + bry * 0.18, brx * 0.6, bry * 0.66, c.belly, null);
+  // тело
+  body += fluff ? fluffy(0, by, brx + 4, bry + 2, 13, `url(#${id}b)`, E) : ell(0, by, brx, bry, `url(#${id}b)`, E);
+  body += ell(0, by + bry * 0.16, brx * 0.58, bry * 0.66, `url(#${id}l)`, 'opacity=".95"');
   if (species === 'cat_ginger' || species === 'cat_gray') {
-    bodyS += `<path d="M${f(-brx * 0.98)},${f(by - 6)} q8,2 12,-2 M${f(-brx * 0.96)},${f(by + 8)} q8,2 12,-2 M${f(brx * 0.98)},${f(by - 6)} q-8,2 -12,-2 M${f(brx * 0.96)},${f(by + 8)} q-8,2 -12,-2" stroke="${c.mark}" stroke-width="4.5" stroke-linecap="round" fill="none"/>`;
+    body += `<path d="M${f(-brx * 0.95)},${f(by - 6)} q7,2 11,-2 M${f(-brx * 0.93)},${f(by + 8)} q7,2 11,-2 M${f(brx * 0.95)},${f(by - 6)} q-7,2 -11,-2 M${f(brx * 0.93)},${f(by + 8)} q-7,2 -11,-2" stroke="${c.mark}" stroke-width="3.6" stroke-linecap="round" fill="none" opacity=".75"/>`;
   }
   // передние лапки
-  const pw = isHamster ? 8 : 10 + 2 * t;
-  const pY = isHamster ? by + 2 : G - 6;
-  const pX = isHamster ? brx * 0.28 : brx * 0.36;
-  front += ell(bx - pX, pY, pw, pw * 0.78, isHamster ? c.nose : c.main, c.dark) + ell(bx + pX, pY, pw, pw * 0.78, isHamster ? c.nose : c.main, c.dark);
-  if (!isHamster) front += `<path d="M${f(bx - pX - 3)},${f(pY + 2)} v4 M${f(bx - pX + 3)},${f(pY + 2)} v4 M${f(bx + pX - 3)},${f(pY + 2)} v4 M${f(bx + pX + 3)},${f(pY + 2)} v4" stroke="${c.dark}" stroke-width="2" stroke-linecap="round"/>`;
+  const pw = isHam ? 7.5 : 9.5 + 2 * t, pY = isHam ? by + 4 : G - 5, pX = isHam ? brx * 0.26 : brx * 0.36;
+  const pawFill = isHam ? c.nose : `url(#${id}l)`;
+  body += ell(-pX, pY, pw, pw * 0.78, pawFill, isHam ? '' : E) + ell(pX, pY, pw, pw * 0.78, pawFill, isHam ? '' : E);
 
-  // --- голова ---
-  let head = '';
-  const H = isHamster ? brx * 0.62 : hr; // «радиус лица» для черт
-  if (!isHamster) {
-    // уши
-    const ear = (side) => {
-      const s = side;
+  // голова
+  let earX = hx + hr * 0.62, earY = hy - hr * 0.86;
+  if (!isHam) {
+    const ear = (sd) => {
+      const o = `class="pet-ear" style="transform-origin:${f(hx + sd * hr * 0.55)}px ${f(hy - hr * 0.55)}px"`;
       if (kind === 'cat' || species === 'raccoon') {
-        const tall = species === 'raccoon' ? 0.95 : 1.12;
-        const o = `M${f(hx + s * hr * 0.92)},${f(hy - hr * 0.2)} L${f(hx + s * hr * 0.78)},${f(hy - hr * tall - 0.2 * hr)} L${f(hx + s * hr * 0.16)},${f(hy - hr * 0.84)}Z`;
-        const i = `M${f(hx + s * hr * 0.78)},${f(hy - hr * 0.42)} L${f(hx + s * hr * 0.72)},${f(hy - hr * tall)} L${f(hx + s * hr * 0.36)},${f(hy - hr * 0.8)}Z`;
-        return `<g class="pet-ear" style="transform-origin:${f(hx + s * hr * 0.55)}px ${f(hy - hr * 0.55)}px"><path d="${o}" fill="${c.main}" stroke="${c.dark}" stroke-width="${W}" stroke-linejoin="round"/><path d="${i}" fill="${species === 'raccoon' ? c.mark : c.inner}" stroke-linejoin="round"/></g>`;
+        const tall = species === 'raccoon' ? 1.02 : 1.16;
+        return `<g ${o}>${softTri([hx + sd * hr * 0.2, hy - hr * 0.72], [hx + sd * hr * 0.76, hy - hr * tall], [hx + sd * hr * 0.9, hy - hr * 0.22], c.main, 9)}`
+          + `${softTri([hx + sd * hr * 0.38, hy - hr * 0.7], [hx + sd * hr * 0.72, hy - hr * (tall - 0.14)], [hx + sd * hr * 0.78, hy - hr * 0.38], species === 'raccoon' ? c.mark : c.inner, 5, 'opacity=".9"')}</g>`;
       }
       if (species === 'dog_corgi') {
-        const o = `M${f(hx + s * hr * 0.95)},${f(hy - hr * 0.1)} Q${f(hx + s * hr * 1.25)},${f(hy - hr * 1.2)} ${f(hx + s * hr * 0.85)},${f(hy - hr * 1.5)} Q${f(hx + s * hr * 0.45)},${f(hy - hr * 1.05)} ${f(hx + s * hr * 0.2)},${f(hy - hr * 0.86)}Z`;
-        const i = `M${f(hx + s * hr * 0.82)},${f(hy - hr * 0.42)} Q${f(hx + s * hr * 1.02)},${f(hy - hr * 1.1)} ${f(hx + s * hr * 0.83)},${f(hy - hr * 1.28)} Q${f(hx + s * hr * 0.55)},${f(hy - hr * 0.98)} ${f(hx + s * hr * 0.4)},${f(hy - hr * 0.8)}Z`;
-        return `<g class="pet-ear" style="transform-origin:${f(hx + s * hr * 0.6)}px ${f(hy - hr * 0.7)}px"><path d="${o}" fill="${c.main}" stroke="${c.dark}" stroke-width="${W}" stroke-linejoin="round"/><path d="${i}" fill="${c.inner}"/></g>`;
+        return `<g ${o}>${softTri([hx + sd * hr * 0.16, hy - hr * 0.72], [hx + sd * hr * 0.86, hy - hr * 1.38], [hx + sd * hr * 0.94, hy - hr * 0.16], c.main, 10)}`
+          + `${softTri([hx + sd * hr * 0.36, hy - hr * 0.66], [hx + sd * hr * 0.82, hy - hr * 1.18], [hx + sd * hr * 0.82, hy - hr * 0.36], c.inner, 6, 'opacity=".9"')}</g>`;
       }
-      // самоед — маленькие пушистые треугольнички
-      const o = `M${f(hx + s * hr * 0.88)},${f(hy - hr * 0.3)} Q${f(hx + s * hr * 0.9)},${f(hy - hr * 1.0)} ${f(hx + s * hr * 0.66)},${f(hy - hr * 1.18)} Q${f(hx + s * hr * 0.35)},${f(hy - hr * 0.95)} ${f(hx + s * hr * 0.2)},${f(hy - hr * 0.85)}Z`;
-      return `<g class="pet-ear" style="transform-origin:${f(hx + s * hr * 0.6)}px ${f(hy - hr * 0.7)}px"><path d="${o}" fill="${c.main}" stroke="${c.dark}" stroke-width="${W}" stroke-linejoin="round"/><path d="M${f(hx + s * hr * 0.7)},${f(hy - hr * 0.55)} Q${f(hx + s * hr * 0.72)},${f(hy - hr * 0.95)} ${f(hx + s * hr * 0.62)},${f(hy - hr * 1.0)} Q${f(hx + s * hr * 0.45)},${f(hy - hr * 0.85)} ${f(hx + s * hr * 0.38)},${f(hy - hr * 0.78)}Z" fill="${c.inner}"/></g>`;
+      return `<g ${o}>${softTri([hx + sd * hr * 0.24, hy - hr * 0.78], [hx + sd * hr * 0.7, hy - hr * 1.1], [hx + sd * hr * 0.88, hy - hr * 0.36], c.main, 10)}`
+        + `${softTri([hx + sd * hr * 0.42, hy - hr * 0.74], [hx + sd * hr * 0.66, hy - hr * 0.96], [hx + sd * hr * 0.76, hy - hr * 0.5], c.inner, 4, 'opacity=".85"')}</g>`;
     };
     head += ear(-1) + ear(1);
-    head += fluff ? fluffy(hx, hy, hr * 1.03, hr * 0.94, 14, c.main, c.dark) : ell(hx, hy, hr, hr * 0.9, c.main, c.dark);
-    // мордочка/отметины
+    head += fluff ? fluffy(hx, hy, hr * 1.02, hr * 0.92, 15, `url(#${id}b)`, E) : ell(hx, hy, hr, hr * 0.88, `url(#${id}b)`, E);
+    // щёчки-пушок у котов
+    if (kind === 'cat' && species !== 'raccoon') {
+      head += `<path d="M${f(hx - hr * 0.92)},${f(hy + hr * 0.2)} l${f(-hr * 0.12)},${f(hr * 0.12)} l${f(hr * 0.16)},${f(hr * 0.04)} l${f(-hr * 0.08)},${f(hr * 0.14)} l${f(hr * 0.2)},${f(-hr * 0.02)}Z" fill="${c.main}"/>`
+        + `<path d="M${f(hx + hr * 0.92)},${f(hy + hr * 0.2)} l${f(hr * 0.12)},${f(hr * 0.12)} l${f(-hr * 0.16)},${f(hr * 0.04)} l${f(hr * 0.08)},${f(hr * 0.14)} l${f(-hr * 0.2)},${f(-hr * 0.02)}Z" fill="${c.main}"/>`;
+    }
     if (species === 'dog_corgi') {
-      head += `<path d="M${f(hx - hr * 0.12)},${f(hy - hr * 0.88)} Q${f(hx)},${f(hy - hr * 0.2)} ${f(hx - hr * 0.62)},${f(hy + hr * 0.62)} Q${f(hx)},${f(hy + hr * 0.95)} ${f(hx + hr * 0.62)},${f(hy + hr * 0.62)} Q${f(hx)},${f(hy - hr * 0.2)} ${f(hx + hr * 0.12)},${f(hy - hr * 0.88)}Z" fill="${c.belly}"/>`;
+      head += `<path d="M${f(hx - hr * 0.1)},${f(hy - hr * 0.86)} Q${f(hx)},${f(hy - hr * 0.2)} ${f(hx - hr * 0.6)},${f(hy + hr * 0.62)} Q${f(hx)},${f(hy + hr * 0.92)} ${f(hx + hr * 0.6)},${f(hy + hr * 0.62)} Q${f(hx)},${f(hy - hr * 0.2)} ${f(hx + hr * 0.1)},${f(hy - hr * 0.86)}Z" fill="url(#${id}l)"/>`;
     } else if (species === 'raccoon') {
-      head += `<path d="M${f(hx - hr * 0.95)},${f(hy + hr * 0.05)} Q${f(hx - hr * 0.6)},${f(hy - hr * 0.42)} ${f(hx - hr * 0.1)},${f(hy - hr * 0.08)} Q${f(hx)},${f(hy + hr * 0.02)} ${f(hx + hr * 0.1)},${f(hy - hr * 0.08)} Q${f(hx + hr * 0.6)},${f(hy - hr * 0.42)} ${f(hx + hr * 0.95)},${f(hy + hr * 0.05)} Q${f(hx + hr * 0.6)},${f(hy + hr * 0.45)} ${f(hx + hr * 0.15)},${f(hy + hr * 0.2)} L${f(hx - hr * 0.15)},${f(hy + hr * 0.2)} Q${f(hx - hr * 0.6)},${f(hy + hr * 0.45)} ${f(hx - hr * 0.95)},${f(hy + hr * 0.05)}Z" fill="${c.mark}"/>`
-        + ell(hx, hy + hr * 0.42, hr * 0.38, hr * 0.27, c.belly, null)
-        + `<path d="M${f(hx - hr * 0.5)},${f(hy - hr * 0.55)} q${f(hr * 0.2)},${f(-hr * 0.12)} ${f(hr * 0.35)},0 M${f(hx + hr * 0.5)},${f(hy - hr * 0.55)} q${f(-hr * 0.2)},${f(-hr * 0.12)} ${f(-hr * 0.35)},0" stroke="#fff" stroke-width="5" stroke-linecap="round" fill="none"/>`;
+      head += ell(hx - hr * 0.4, hy + hr * 0.12, hr * 0.32, hr * 0.26, c.mark, `transform="rotate(-12 ${f(hx - hr * 0.4)} ${f(hy + hr * 0.12)})" opacity=".92"`)
+        + ell(hx + hr * 0.4, hy + hr * 0.12, hr * 0.32, hr * 0.26, c.mark, `transform="rotate(12 ${f(hx + hr * 0.4)} ${f(hy + hr * 0.12)})" opacity=".92"`)
+        + ell(hx, hy + hr * 0.46, hr * 0.36, hr * 0.26, `url(#${id}l)`)
+        + `<path d="M${f(hx)},${f(hy - hr * 0.8)} L${f(hx)},${f(hy - hr * 0.1)}" stroke="${c.shade}" stroke-width="6" stroke-linecap="round" opacity=".4"/>`;
     } else {
-      head += ell(hx, hy + hr * 0.42, hr * 0.42, hr * 0.28, c.belly, null);
+      head += ell(hx, hy + hr * 0.44, hr * 0.4, hr * 0.27, `url(#${id}l)`);
     }
     if (species === 'cat_ginger' || species === 'cat_gray') {
-      head += `<path d="M${f(hx)},${f(hy - hr * 0.86)} v${f(hr * 0.3)} M${f(hx - hr * 0.24)},${f(hy - hr * 0.82)} v${f(hr * 0.22)} M${f(hx + hr * 0.24)},${f(hy - hr * 0.82)} v${f(hr * 0.22)}" stroke="${c.mark}" stroke-width="5" stroke-linecap="round"/>`;
+      head += `<path d="M${f(hx)},${f(hy - hr * 0.84)} v${f(hr * 0.26)} M${f(hx - hr * 0.22)},${f(hy - hr * 0.8)} v${f(hr * 0.18)} M${f(hx + hr * 0.22)},${f(hy - hr * 0.8)} v${f(hr * 0.18)}" stroke="${c.mark}" stroke-width="4" stroke-linecap="round" opacity=".75"/>`;
     }
     if (species === 'cat_white') {
-      head += `<path d="M${f(hx + hr * 0.25)},${f(hy - hr * 0.86)} Q${f(hx + hr * 0.95)},${f(hy - hr * 0.75)} ${f(hx + hr * 0.92)},${f(hy - hr * 0.15)} Q${f(hx + hr * 0.5)},${f(hy - hr * 0.35)} ${f(hx + hr * 0.25)},${f(hy - hr * 0.86)}Z" fill="${c.mark}" opacity=".9"/>`;
+      head += `<path d="M${f(hx + hr * 0.22)},${f(hy - hr * 0.84)} Q${f(hx + hr * 0.92)},${f(hy - hr * 0.72)} ${f(hx + hr * 0.9)},${f(hy - hr * 0.12)} Q${f(hx + hr * 0.5)},${f(hy - hr * 0.32)} ${f(hx + hr * 0.22)},${f(hy - hr * 0.84)}Z" fill="${c.mark}" opacity=".75"/>`;
     }
     if (kind === 'cat') {
-      // усики
-      head += `<path d="M${f(hx - hr * 0.55)},${f(hy + hr * 0.36)} l${f(-hr * 0.5)},${f(-hr * 0.08)} M${f(hx - hr * 0.55)},${f(hy + hr * 0.47)} l${f(-hr * 0.48)},${f(hr * 0.07)} M${f(hx + hr * 0.55)},${f(hy + hr * 0.36)} l${f(hr * 0.5)},${f(-hr * 0.08)} M${f(hx + hr * 0.55)},${f(hy + hr * 0.47)} l${f(hr * 0.48)},${f(hr * 0.07)}" stroke="${c.dark}" stroke-width="1.8" stroke-linecap="round" opacity=".7"/>`;
+      head += `<path d="M${f(hx - hr * 0.56)},${f(hy + hr * 0.4)} l${f(-hr * 0.42)},${f(-hr * 0.06)} M${f(hx - hr * 0.56)},${f(hy + hr * 0.5)} l${f(-hr * 0.4)},${f(hr * 0.06)} M${f(hx + hr * 0.56)},${f(hy + hr * 0.4)} l${f(hr * 0.42)},${f(-hr * 0.06)} M${f(hx + hr * 0.56)},${f(hy + hr * 0.5)} l${f(hr * 0.4)},${f(hr * 0.06)}" stroke="${mix(c.shade, '#FFFFFF', .2)}" stroke-width="1.3" stroke-linecap="round" opacity=".55"/>`;
     }
   } else {
-    // хомяк: уши-кружки на «теле-голове»
     const er = 10 + 2 * t;
-    head = '';
-    back += ell(bx - brx * 0.55, bTop + 10, er, er, c.main, c.dark) + ell(bx + brx * 0.55, bTop + 10, er, er, c.main, c.dark)
-      + ell(bx - brx * 0.55, bTop + 11, er * 0.55, er * 0.55, c.inner, null) + ell(bx + brx * 0.55, bTop + 11, er * 0.55, er * 0.55, c.inner, null);
-    // щёчки-мешочки (надуваются, когда ест)
+    back += ell(-brx * 0.52, bTop + 11, er, er, `url(#${id}b)`, E) + ell(brx * 0.52, bTop + 11, er, er, `url(#${id}b)`, E)
+      + ell(-brx * 0.52, bTop + 12, er * 0.55, er * 0.55, c.inner) + ell(brx * 0.52, bTop + 12, er * 0.55, er * 0.55, c.inner);
     const pf = mood === 'eat' ? 1.3 : 1;
-    bodyS += ell(hx - H * 0.62, hy + H * 0.38, H * 0.32 * pf, H * 0.25 * pf, c.belly, null) + ell(hx + H * 0.62, hy + H * 0.38, H * 0.32 * pf, H * 0.25 * pf, c.belly, null);
-    bodyS += `<path d="M${f(hx - H * 0.2)},${f(bTop + 3)} q${f(H * 0.2)},${f(H * 0.25)} ${f(H * 0.4)},0" stroke="${c.mark}" stroke-width="5" stroke-linecap="round" fill="none"/>`;
+    body += ell(hx, hy + H * 0.42, H * 0.62, H * 0.4, `url(#${id}l)`);
+    body += ell(hx - H * 0.62, hy + H * 0.4, H * 0.3 * pf, H * 0.24 * pf, `url(#${id}l)`) + ell(hx + H * 0.62, hy + H * 0.4, H * 0.3 * pf, H * 0.24 * pf, `url(#${id}l)`);
+    body += `<path d="M${f(hx - H * 0.16)},${f(bTop + 4)} q${f(H * 0.16)},${f(H * 0.2)} ${f(H * 0.32)},0" stroke="${c.mark}" stroke-width="4" stroke-linecap="round" fill="none" opacity=".7"/>`;
+    earX = hx + brx * 0.52; earY = bTop + 6;
   }
-  const face = `<g class="pet-face">${eyes(mood, hx, hy, H, stage <= 2, c)}${cheeks(hx, hy, H)}${mouth(kind, mood, hx, hy, H, c)}</g>`;
-  const acc = accessories(stage, hx, isHamster ? hy - H * 0.15 : hy, isHamster ? H * 1.05 : hr, bx, isHamster ? hy + H * 0.78 : bTop, isHamster ? brx * 0.62 : brx);
-  return `<g class="pet-back">${back}</g><g class="pet-body">${bodyS}${front}</g><g class="pet-head" style="transform-origin:${f(hx)}px ${f(hy + H * 0.8)}px">${head}${face}${acc}</g>`;
+  const face = `<g class="pet-face">${eyes(id, mood, hx, hy, H, stage <= 2)}${blush(id, hx, hy, H)}${nose(c, kind, hx, hy, H)}${mouth(c, kind, mood, hx, hy, H)}</g>`;
+  const neckY = isHam ? hy + H * 0.92 : hy + hr * 0.84;
+  const neckW = isHam ? H * 0.55 : hr * 0.5;
+  const acc = accessories(stage, hx, isHam ? hy - H * 0.2 : hy, isHam ? H * 1.1 : hr, neckY, neckW, earX, earY, isHam);
+  return `<g class="pet-back">${back}</g><g class="pet-body">${body}</g><g class="pet-head" style="transform-origin:${f(hx)}px ${f(hy + H * 0.8)}px">${head}${face}${acc}</g>`;
 }
 
 // ---------- попугай ----------
-function parrot(stage, mood) {
+function parrot(id, stage, mood) {
   const c = PAL.parrot;
   const t = stage / 6;
   const G = 92;
-  const hr = 38 - 4 * t, brx = 30 + 8 * t, bry = 36 + 10 * t;
+  const hr = 37 - 4 * t, brx = 29 + 8 * t, bry = 35 + 10 * t;
   const by = G - 12 - bry, hy = by - bry - hr * 0.35 + 14;
+  const E = edge(c);
   let s = '';
-  // жёрдочка
-  s += `<rect x="-62" y="${G - 12}" width="124" height="10" rx="5" fill="#C9935D" stroke="#7A4E2D" stroke-width="${W}"/>`;
-  // хвост
-  s += `<g class="pet-tail" style="transform-origin:0px ${f(by + bry * 0.6)}px"><path d="M-8,${f(by + bry * 0.6)} L-16,${f(G + 26)} L-2,${f(G + 22)} L8,${f(G + 28)} L10,${f(by + bry * 0.6)}Z" fill="${c.mark}" stroke="${c.dark}" stroke-width="${W}" stroke-linejoin="round"/></g>`;
-  // тело
-  s += ell(0, by, brx, bry, c.main, c.dark) + ell(0, by + bry * 0.25, brx * 0.62, bry * 0.62, c.belly, null);
-  // крылья
-  s += `<g class="pet-wing-l" style="transform-origin:${f(-brx * 0.8)}px ${f(by - bry * 0.4)}px"><path d="M${f(-brx * 0.85)},${f(by - bry * 0.5)} Q${f(-brx * 1.35)},${f(by + bry * 0.2)} ${f(-brx * 0.5)},${f(by + bry * 0.85)} Q${f(-brx * 0.45)},${f(by)} ${f(-brx * 0.85)},${f(by - bry * 0.5)}Z" fill="#5CB86A" stroke="${c.dark}" stroke-width="${W}" stroke-linejoin="round"/></g>`
-    + `<g class="pet-wing-r" style="transform-origin:${f(brx * 0.8)}px ${f(by - bry * 0.4)}px"><path d="M${f(brx * 0.85)},${f(by - bry * 0.5)} Q${f(brx * 1.35)},${f(by + bry * 0.2)} ${f(brx * 0.5)},${f(by + bry * 0.85)} Q${f(brx * 0.45)},${f(by)} ${f(brx * 0.85)},${f(by - bry * 0.5)}Z" fill="#5CB86A" stroke="${c.dark}" stroke-width="${W}" stroke-linejoin="round"/></g>`;
-  // лапки
-  s += `<path d="M-10,${f(G - 18)} v8 M-14,${f(G - 10)} h8 M10,${f(G - 18)} v8 M6,${f(G - 10)} h8" stroke="#E58A3A" stroke-width="4" stroke-linecap="round"/>`;
-  // голова
+  s += `<rect x="-60" y="${G - 12}" width="120" height="9" rx="4.5" fill="#D8B48C"/><rect x="-60" y="${G - 12}" width="120" height="3" rx="1.5" fill="#E9CDAA"/>`;
+  s += `<g class="pet-tail" style="transform-origin:0px ${f(by + bry * 0.6)}px"><path d="M-8,${f(by + bry * 0.6)} Q-14,${f(G + 14)} -12,${f(G + 26)} Q-2,${f(G + 18)} 4,${f(G + 28)} Q10,${f(G + 12)} 10,${f(by + bry * 0.6)}Z" fill="${c.mark}"/></g>`;
+  s += ell(0, by, brx, bry, `url(#${id}b)`, E) + ell(0, by + bry * 0.24, brx * 0.6, bry * 0.62, `url(#${id}l)`);
+  const wing = (sd) => `<g class="pet-wing-${sd < 0 ? 'l' : 'r'}" style="transform-origin:${f(sd * brx * 0.8)}px ${f(by - bry * 0.4)}px"><path d="M${f(sd * brx * 0.85)},${f(by - bry * 0.5)} Q${f(sd * brx * 1.3)},${f(by + bry * 0.2)} ${f(sd * brx * 0.5)},${f(by + bry * 0.85)} Q${f(sd * brx * 0.45)},${f(by)} ${f(sd * brx * 0.85)},${f(by - bry * 0.5)}Z" fill="${c.shade}" opacity=".85"/><path d="M${f(sd * brx * 0.8)},${f(by)} q${f(sd * 6)},8 ${f(sd * 2)},18" stroke="${c.light}" stroke-width="2" fill="none" opacity=".5"/></g>`;
+  s += wing(-1) + wing(1);
+  s += `<path d="M-10,${f(G - 18)} v7 M-14,${f(G - 11)} h8 M10,${f(G - 18)} v7 M6,${f(G - 11)} h8" stroke="#E9A06A" stroke-width="3.5" stroke-linecap="round"/>`;
   let h = '';
-  h += `<path d="M-6,${f(hy - hr * 0.9)} q-4,-14 6,-18 q-2,8 4,10 q2,-10 10,-8 q-6,6 -4,16" fill="${c.inner}" stroke="${c.dark}" stroke-width="2.6" stroke-linejoin="round"/>`; // хохолок
-  h += ell(0, hy, hr, hr * 0.95, '#A6E37C', c.dark);
-  h += ell(0, hy + hr * 0.45, hr * 0.62, hr * 0.42, c.belly, null);
-  h += `<g class="pet-face">${eyes(mood, 0, hy - hr * 0.1, hr * 1.05, stage <= 2, c)}${cheeks(0, hy, hr)}</g>`;
-  // клюв
+  h += `<path d="M-4,${f(hy - hr * 0.88)} q-4,-14 5,-17 q-1,8 4,9 q2,-9 9,-7 q-5,5 -3,14" fill="${c.inner}"/>`;
+  h += ell(0, hy, hr, hr * 0.95, `url(#${id}b)`, E) + ell(0, hy + hr * 0.45, hr * 0.62, hr * 0.42, `url(#${id}l)`);
+  h += `<g class="pet-face">${eyes(id, mood, 0, hy - hr * 0.12, hr * 1.05, stage <= 2)}${blush(id, 0, hy, hr)}</g>`;
   const open = mood === 'hungry' || mood === 'eat' || mood === 'play';
-  h += `<path d="M-8,${f(hy + hr * 0.18)} Q0,${f(hy + hr * 0.08)} 8,${f(hy + hr * 0.18)} Q7,${f(hy + hr * 0.55)} 0,${f(hy + hr * 0.62)} Q-7,${f(hy + hr * 0.55)} -8,${f(hy + hr * 0.18)}Z" fill="${c.nose}" stroke="${INK}" stroke-width="2.4" stroke-linejoin="round"/>`;
-  if (open) h += `<path d="M-6,${f(hy + hr * 0.62)} Q0,${f(hy + hr * 0.9)} 6,${f(hy + hr * 0.62)}" fill="#E07A2E" stroke="${INK}" stroke-width="2.2"/>`;
-  h += accessories(stage, 0, hy, hr, 0, by - bry, brx);
+  h += `<path d="M-7,${f(hy + hr * 0.16)} Q0,${f(hy + hr * 0.06)} 7,${f(hy + hr * 0.16)} Q6,${f(hy + hr * 0.52)} 0,${f(hy + hr * 0.6)} Q-6,${f(hy + hr * 0.52)} -7,${f(hy + hr * 0.16)}Z" fill="${c.nose}"/>`;
+  if (open) h += `<path d="M-5,${f(hy + hr * 0.6)} Q0,${f(hy + hr * 0.86)} 5,${f(hy + hr * 0.6)}" fill="#E08A4E"/>`;
+  h += accessories(stage, 0, hy, hr, hy + hr * 0.86, hr * 0.5, hr * 0.62, hy - hr * 0.8);
   return `<g class="pet-body">${s}</g><g class="pet-head" style="transform-origin:0px ${f(hy + hr * 0.8)}px">${h}</g>`;
 }
 
 // ---------- черепашка ----------
-function turtle(stage, mood) {
+function turtle(id, stage, mood) {
   const c = PAL.turtle;
   const t = stage / 6;
   const G = 92;
-  const srx = 48 + 12 * t, sry = 34 + 8 * t;
-  const sy = G - 18;
-  const hr = 30 - 2 * t;
-  const hx = 0, hy = sy - sry * 0.3 - hr * 0.2 - 6;
+  const srx = 46 + 12 * t, sry = 33 + 8 * t, sy = G - 18;
+  const hr = 29 - 2 * t, hx = 0, hy = sy - sry * 0.32 - hr * 0.2 - 6;
+  const E = edge(c);
   let s = '';
-  // лапки
-  s += ell(-srx * 0.68, G - 8, 13, 10, c.main, c.dark) + ell(srx * 0.68, G - 8, 13, 10, c.main, c.dark);
-  s += `<g class="pet-tail" style="transform-origin:${f(srx * 0.9)}px ${f(sy + 8)}px"><path d="M${f(srx * 0.85)},${f(sy + 6)} q14,2 16,-6 q-6,12 -16,12Z" fill="${c.main}" stroke="${c.dark}" stroke-width="${W}" stroke-linejoin="round"/></g>`;
-  // панцирь
-  s += `<path d="M${f(-srx)},${f(sy + 8)} Q${f(-srx)},${f(sy - sry * 1.15)} 0,${f(sy - sry * 1.15)} Q${f(srx)},${f(sy - sry * 1.15)} ${f(srx)},${f(sy + 8)}Z" fill="${c.mark}" stroke="${c.dark}" stroke-width="${W}" stroke-linejoin="round"/>`;
-  // узор панциря
-  const hx6 = (x, y, r) => `<path d="M${f(x - r)},${f(y)} L${f(x - r / 2)},${f(y - r * 0.85)} L${f(x + r / 2)},${f(y - r * 0.85)} L${f(x + r)},${f(y)} L${f(x + r / 2)},${f(y + r * 0.85)} L${f(x - r / 2)},${f(y + r * 0.85)}Z" fill="${c.main}" stroke="${c.dark}" stroke-width="2.2" stroke-linejoin="round" opacity=".95"/>`;
-  s += hx6(0, sy - sry * 0.5, 13 + 3 * t) + hx6(-srx * 0.52, sy - sry * 0.2, 10 + 2 * t) + hx6(srx * 0.52, sy - sry * 0.2, 10 + 2 * t);
-  s += `<rect x="${f(-srx - 3)}" y="${f(sy + 2)}" width="${f(srx * 2 + 6)}" height="12" rx="6" fill="${c.belly}" stroke="${c.dark}" stroke-width="${W}"/>`;
-  // голова (выглядывает вперёд, чуть сверху)
+  s += ell(-srx * 0.68, G - 8, 12, 9, `url(#${id}b)`, E) + ell(srx * 0.68, G - 8, 12, 9, `url(#${id}b)`, E);
+  s += `<g class="pet-tail" style="transform-origin:${f(srx * 0.9)}px ${f(sy + 8)}px"><path d="M${f(srx * 0.85)},${f(sy + 6)} q13,2 15,-6 q-5,12 -15,12Z" fill="${c.main}"/></g>`;
+  s += `<path d="M${f(-srx)},${f(sy + 8)} Q${f(-srx)},${f(sy - sry * 1.15)} 0,${f(sy - sry * 1.15)} Q${f(srx)},${f(sy - sry * 1.15)} ${f(srx)},${f(sy + 8)}Z" fill="url(#${id}s)"/>`;
+  const hex = (x, y, r) => `<path d="M${f(x - r)},${f(y)} L${f(x - r / 2)},${f(y - r * 0.85)} L${f(x + r / 2)},${f(y - r * 0.85)} L${f(x + r)},${f(y)} L${f(x + r / 2)},${f(y + r * 0.85)} L${f(x - r / 2)},${f(y + r * 0.85)}Z" fill="${c.light}" opacity=".28" stroke="${c.light}" stroke-opacity=".5" stroke-width="1.5" stroke-linejoin="round"/>`;
+  s += hex(0, sy - sry * 0.5, 12 + 3 * t) + hex(-srx * 0.52, sy - sry * 0.2, 9 + 2 * t) + hex(srx * 0.52, sy - sry * 0.2, 9 + 2 * t);
+  s += `<rect x="${f(-srx - 2)}" y="${f(sy + 2)}" width="${f(srx * 2 + 4)}" height="11" rx="5.5" fill="${c.light}"/>`;
   let h = '';
-  h += ell(hx, hy + hr * 0.2, hr * 0.55, hr * 0.7, c.main, c.dark);
-  h += ell(hx, hy, hr, hr * 0.85, c.main, c.dark);
-  h += `<g class="pet-face">${eyes(mood, hx, hy, hr * 1.05, true, c)}${cheeks(hx, hy, hr)}${mouth('cat', mood, hx, hy, hr, { ...c, nose: c.dark })}</g>`;
-  h += accessories(stage, hx, hy, hr, hx, hy + hr * 0.7, hr * 0.9);
-  return `<g class="pet-body">${s}</g><g class="pet-head" style="transform-origin:${f(hx)}px ${f(hy + hr)}px">${h}</g>`;
+  h += ell(hx, hy + hr * 0.24, hr * 0.52, hr * 0.68, `url(#${id}b)`);
+  h += ell(hx, hy, hr, hr * 0.86, `url(#${id}b)`, E);
+  h += `<g class="pet-face">${eyes(id, mood, hx, hy, hr * 1.05, true)}${blush(id, hx, hy, hr)}${mouth(c, 'cat', mood, hx, hy, hr)}</g>`;
+  h += accessories(stage, hx, hy, hr, hy + hr * 0.84, hr * 0.48, hx + hr * 0.6, hy - hr * 0.72, true);
+  const shell = `<defs><linearGradient id="${id}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${mix(c.mark, '#FFFFFF', .2)}"/><stop offset="1" stop-color="${c.inner}"/></linearGradient></defs>`;
+  return `${shell}<g class="pet-body">${s}</g><g class="pet-head" style="transform-origin:${f(hx)}px ${f(hy + hr)}px">${h}</g>`;
 }
 
-// ---------- грязь, сон и т.п. ----------
 function overlays(mood) {
-  let o = '';
-  if (mood === 'dirty') {
-    o += `<g class="pet-dirt" opacity=".75"><ellipse cx="-24" cy="62" rx="9" ry="6" fill="#A97C5B"/><ellipse cx="22" cy="40" rx="7" ry="5" fill="#A97C5B"/><ellipse cx="30" cy="-34" rx="6" ry="4" fill="#A97C5B"/></g>`
-      + `<g class="pet-fly"><circle cx="0" cy="0" r="3" fill="${INK}"/><ellipse cx="-3" cy="-4" rx="3" ry="2" fill="#fff" opacity=".8"/><ellipse cx="3" cy="-4" rx="3" ry="2" fill="#fff" opacity=".8"/></g>`;
-  }
-  return o;
+  if (mood !== 'dirty') return '';
+  return `<g class="pet-dirt" opacity=".55"><ellipse cx="-24" cy="62" rx="8" ry="5" fill="#A8836A"/><ellipse cx="22" cy="40" rx="6" ry="4" fill="#A8836A"/><ellipse cx="28" cy="-34" rx="5" ry="3.5" fill="#A8836A"/></g>`
+    + `<g class="pet-fly"><circle r="2.6" fill="#3B2B33"/><ellipse cx="-3" cy="-3.5" rx="3" ry="2" fill="#fff" opacity=".8"/><ellipse cx="3" cy="-3.5" rx="3" ry="2" fill="#fff" opacity=".8"/></g>`;
 }
 
 export function petSVG(species, { stage = 0, mood = 'happy', cls = '', size } = {}) {
+  const id = 'p' + (++UID);
+  const c = PAL[species] || PAL.cat_ginger;
   let inner;
-  if (species === 'parrot') inner = parrot(stage, mood);
-  else if (species === 'turtle') inner = turtle(stage, mood);
-  else inner = furry(species, stage, mood);
-  const sc = 0.72 + 0.28 * (stage / 6);
+  if (species === 'parrot') inner = parrot(id, stage, mood);
+  else if (species === 'turtle') inner = turtle(id, stage, mood);
+  else inner = furry(id, species, stage, mood);
+  const sc = 0.74 + 0.26 * (stage / 6);
   const sz = size ? ` width="${size}" height="${size}"` : '';
-  return `<svg class="pet-svg mood-${mood} ${cls}" viewBox="-100 -110 200 210"${sz} xmlns="http://www.w3.org/2000/svg" aria-hidden="true">`
-    + `<ellipse class="pet-shadow" cx="0" cy="95" rx="${f(62 * sc)}" ry="8" fill="#000" opacity=".12"/>`
+  return `<svg class="pet-svg mood-${mood} ${cls}" viewBox="-100 -110 200 210"${sz} xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${defs(id, c)}`
+    + `<ellipse class="pet-shadow" cx="0" cy="95" rx="${f(58 * sc)}" ry="7" fill="#000" opacity=".14"/>`
     + `<g class="pet-root" transform="translate(0,95) scale(${f(sc)}) translate(0,-95)">${inner}${overlays(mood)}</g></svg>`;
 }
 

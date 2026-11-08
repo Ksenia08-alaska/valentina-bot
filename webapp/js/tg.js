@@ -4,6 +4,15 @@ export const tg = W && W.initData !== undefined ? W : null;
 
 export const devUser = new URLSearchParams(location.search).get('dev');
 
+// личный ключ из кнопки в клавиатуре (там Telegram не передаёт initData)
+export const appToken = (() => {
+  const q = new URLSearchParams(location.search).get('t');
+  try {
+    if (q) sessionStorage.setItem('t', q);
+    return q || sessionStorage.getItem('t') || '';
+  } catch (e) { return q || ''; }
+})();
+
 export function initData() {
   return tg ? tg.initData : '';
 }

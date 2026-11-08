@@ -50,7 +50,8 @@ BTN_SEND = "💌 Отправить сообщение"
 BTN_REASONS = "💯 101 причина"
 BTN_PLAYLIST = "🎶 Наш плейлист"
 BTN_WRITE = "✉️ Написать пользователю"
-BTN_APP = "🐾 Наше приложение"
+BTN_APP = "💞 Наше приложение"
+OLD_BTN_APP = "🐾 Наше приложение"
 
 USER_KB = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text=BTN_SEND)],
@@ -62,10 +63,6 @@ ADMIN_KB = ReplyKeyboardMarkup(
               [KeyboardButton(text=BTN_REASONS), KeyboardButton(text=BTN_PLAYLIST)]],
     resize_keyboard=True,
 )
-# для двоих, у кого есть доступ к мини-приложению, добавляем ещё одну строку
-APP_ROW = [KeyboardButton(text=BTN_APP)]
-USER_APP_KB = ReplyKeyboardMarkup(keyboard=USER_KB.keyboard + [APP_ROW], resize_keyboard=True)
-ADMIN_APP_KB = ReplyKeyboardMarkup(keyboard=ADMIN_KB.keyboard + [APP_ROW], resize_keyboard=True)
 
 DRAFT_KB = InlineKeyboardMarkup(inline_keyboard=[[
     InlineKeyboardButton(text="📨 Отправить", callback_data="send"),
@@ -107,14 +104,34 @@ def has_app(uid: int) -> bool:
 
 
 def kb_for(uid: int):
-    if uid == ADMIN_ID:
-        return ADMIN_APP_KB if has_app(uid) else ADMIN_KB
-    return USER_APP_KB if has_app(uid) else USER_KB
+    """Клавиатура. У нас двоих первой строкой — кнопка приложения (со своим ключом)."""
+    base = ADMIN_KB if uid == ADMIN_ID else USER_KB
+    if not has_app(uid):
+        return base
+    app_row = [KeyboardButton(text=BTN_APP, web_app=WebAppInfo(url=webapp_api.app_url_for(uid)))]
+    return ReplyKeyboardMarkup(keyboard=[app_row] + base.keyboard, resize_keyboard=True)
 
 
-def app_inline() -> InlineKeyboardMarkup:
+def app_inline(text: str = "✨ Открыть приложение") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="✨ Открыть приложение", web_app=WebAppInfo(url=WEBAPP_URL))]])
+        InlineKeyboardButton(text=text, web_app=WebAppInfo(url=WEBAPP_URL))]])
+
+
+def update_text() -> str:
+    return ("✨ <b>У нас появилось своё приложение!</b>\n\n"
+            "Кнопка «💞 Наше приложение» теперь всегда внизу, под рукой. Внутри:\n"
+            "⏳ таймер до нашей встречи\n"
+            "🐾 наш общий питомец\n"
+            "💌 письма с замочком, хотелки и важные мелочи друг о друге")
+
+
+def pet_text(uid: int) -> str:
+    pn = webapp_api.PARTNER_NAME
+    together = f"ваши с {pn[:-1] + 'ой' if pn.endswith('а') else pn} выборы" if uid == ADMIN_ID else "наши выборы"
+    return ("🐾 <b>Первым делом — выберите питомца вместе.</b>\n\n"
+            f"Каждый выбирает своего, а малыш появится только тогда, когда {together} совпадут. "
+            "Договориться можно прямо в чате приложения 😉\n\n"
+            "А потом растим его вдвоём: кормим, играем и не даём погаснуть нашему огоньку 🔥")
 
 
 # ---------- черновики сообщений ----------
@@ -147,34 +164,44 @@ def reply_button(cb_data: str) -> InlineKeyboardMarkup:
 async def cmd_start(m: Message):
     await remember(m.from_user)
     drafts.pop(m.from_user.id, None)
-    if m.from_user.id == ADMIN_ID:
-        await m.answer("👑 Привет, админ! Здесь можно написать любому, кто заходил в бота.",
-                       reply_markup=kb_for(m.from_user.id))
-        if has_app(m.from_user.id):
-            await m.answer("🐾 Наше мини-приложение:", reply_markup=app_inline())
+    uid = m.from_user.id
+    if uid == ADMIN_ID:
+        text = "👑 Привет, админ! Здесь можно написать любому, кто заходил в бота."
+    else:
+        text = ("Привет, любимый 💗\n\n"
+                "Этот бот — маленький подарок, который я сделала специально для тебя.\n\n"
+                "💌 Здесь можно написать мне что угодно — текстом или до 3 фото и видео.\n"
+                "💯 Тут спрятана 101 причина, почему я тебя люблю.\n"
+                "🎶 И наши песни.")
+    if has_app(uid):
+        text += "\n\n" + update_text()
+    await m.answer(text, reply_markup=kb_for(uid))
+    if has_app(uid):
+        await m.answer(pet_text(uid), reply_markup=app_inline("🐾 Выбрать питомца"))
+
+
+async def announce_update(bot: Bot) -> None:
+    """Один раз рассказываем нам двоим про обновление (и ставим новую клавиатуру)."""
+    if not WEBAPP_URL or store.get("announced:app_v2"):
         return
-    await m.answer(
-        "Привет, любимый 💗\n\n"
-        "Этот бот — маленький подарок, который я сделала специально для тебя.\n\n"
-        "💌 Здесь можно написать мне что угодно — текстом или до 3 фото и видео, а я отвечу.\n"
-        "💯 Тут спрятана 101 причина, почему я тебя люблю.\n"
-        "🎶 И наши песни.\n\n"
-        "Жми на кнопки внизу 👇",
-        reply_markup=kb_for(m.from_user.id),
-    )
-    if has_app(m.from_user.id):
-        await m.answer("🐾 А ещё у нас есть своё маленькое приложение: таймер до дембеля, "
-                       "наш питомец и важные мелочи друг о друге 💞", reply_markup=app_inline())
+    for uid in webapp_api.ALLOWED:
+        try:
+            await bot.send_message(uid, "Обновление 💞\n\n" + update_text(), reply_markup=kb_for(uid))
+            await bot.send_message(uid, pet_text(uid), reply_markup=app_inline("🐾 Выбрать питомца"))
+        except TelegramAPIError as e:
+            logging.info("announce %s: %s", uid, e)
+    await store.set("announced:app_v2", True)
 
 
 # ---------- мини-приложение ----------
-@dp.message(F.text == BTN_APP)
+@dp.message(F.text.in_({BTN_APP, OLD_BTN_APP}))
 @dp.message(Command("app"))
 async def menu_app(m: Message):
     if not has_app(m.from_user.id):
         await m.answer("Приложение пока недоступно 🙈")
         return
-    await m.answer("🐾 Открывай 👇", reply_markup=app_inline())
+    await m.answer("💞 Открывай 👇", reply_markup=app_inline())
+    await m.answer("Кнопка приложения теперь всегда внизу 👇", reply_markup=kb_for(m.from_user.id))
 
 
 @dp.message(Command("myid"))
@@ -388,6 +415,7 @@ async def main():
 
     reminders = asyncio.create_task(webapp_api.reminders_loop(app))
     await setup_menu_buttons(bot)
+    await announce_update(bot)
     await bot.delete_webhook(drop_pending_updates=True)
     try:
         await dp.start_polling(bot)

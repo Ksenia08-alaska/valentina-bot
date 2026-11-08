@@ -90,7 +90,7 @@ Render → твой сервис → **Environment** → **Add Environment Varia
 3. В **Root Directory** нажми **Edit** и выбери папку **`webapp`**. Это важно.
 4. **Framework Preset**: **Other**. Build Command и Output Directory оставь пустыми.
 5. Нажми **Deploy**. Через минуту появится ссылка вида `https://valentina-bot-xxx.vercel.app`.
-6. Открой `webapp/vercel.json` и проверь адрес Render в строке `destination`. Он должен совпадать с адресом твоего сервиса (Render → сервис → ссылка сверху, например `https://valentina-bot.onrender.com`). Если отличается, исправь и закоммить, Vercel передеплоит сам.
+6. Открой `webapp/vercel.json` и проверь адрес Render в строке `destination`. Он должен совпадать с адресом твоего сервиса (Render → сервис → ссылка сверху, например `https://valentina-bot-e5u9.onrender.com`). Если отличается, исправь и закоммить, Vercel передеплоит сам.
 7. Скопируй ссылку Vercel в переменную `WEBAPP_URL` на Render (шаг 3). Render перезапустится.
 
 ### 5. Готово

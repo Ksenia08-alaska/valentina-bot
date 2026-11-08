@@ -4,6 +4,8 @@
 Подпись проверяется токеном бота, пускаем только двоих: ADMIN_ID и PARTNER_ID.
 """
 import asyncio
+import hashlib
+import hmac
 import html
 import io
 import logging
@@ -60,7 +62,8 @@ DEFAULT_EVENTS = [
      "month": 2, "day": 3, "kind": "birthday", "builtin": True},
 ]
 
-THEMES = {"auto", "light", "dark", "peach", "lavender", "night", "mint"}
+THEMES = {"dusk", "auto", "light", "dark", "peach", "lavender", "night", "mint"}
+DEFAULT_THEME = "dusk"
 
 presence: dict[int, float] = {}          # uid -> когда последний раз был в приложении
 last_chat_ping: dict[int, float] = {}    # uid -> когда последний раз уведомляли о чате
@@ -75,6 +78,31 @@ def short_name(uid: int) -> str:
     return ADMIN_NAME if uid == ADMIN_ID else PARTNER_NAME
 
 
+# ---------- личный ключ для кнопки в клавиатуре ----------
+# Telegram не передаёт данные пользователя, если приложение открыто кнопкой
+# из обычной клавиатуры. Поэтому каждому из двоих бот даёт ссылку со своим
+# подписанным ключом (HMAC от токена бота) — подделать его нельзя.
+def app_token(uid: int) -> str:
+    sig = hmac.new(BOT_TOKEN.encode(), f"app:{uid}".encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{uid}.{sig}"
+
+
+def check_app_token(token: str) -> int | None:
+    try:
+        uid = int(token.split(".", 1)[0])
+    except (ValueError, AttributeError):
+        return None
+    return uid if hmac.compare_digest(token, app_token(uid)) else None
+
+
+def app_url_for(uid: int) -> str:
+    if not WEBAPP_URL:
+        return ""
+    base = WEBAPP_URL if "?" in WEBAPP_URL or WEBAPP_URL.endswith("/") or WEBAPP_URL.count("/") > 2 else WEBAPP_URL + "/"
+    sep = "&" if "?" in base else "?"
+    return f"{base}{sep}t={app_token(uid)}"
+
+
 def app_button(text: str = "Открыть приложение") -> InlineKeyboardMarkup | None:
     if not WEBAPP_URL:
         return None
@@ -84,7 +112,7 @@ def app_button(text: str = "Открыть приложение") -> InlineKeybo
 
 def settings_of(store: Storage, uid: int) -> dict:
     s = store.get(f"settings:{uid}", {})
-    s.setdefault("theme", "auto")
+    s.setdefault("theme", DEFAULT_THEME)
     n = s.setdefault("notify", {})
     for k in ("events", "chat", "pet", "notes"):
         n.setdefault(k, True)
@@ -127,6 +155,13 @@ async def cors_and_auth(request: web.Request, handler):
                 user = data.user
             except (ValueError, KeyError) as e:
                 log.info("bad initData: %s", e)
+        elif request.headers.get("X-App-Token"):
+            uid = check_app_token(request.headers["X-App-Token"])
+            if uid:
+                prof = request.app["store"].get("profiles", {}).get(str(uid), {})
+                user = type("U", (), {"id": uid, "first_name": prof.get("first_name") or short_name(uid),
+                                      "last_name": prof.get("last_name"), "username": prof.get("username"),
+                                      "photo_url": None, "language_code": "ru", "is_premium": False})()
         elif DEV_AUTH and request.headers.get("X-Dev-User"):
             uid = int(request.headers["X-Dev-User"])
             user = type("U", (), {"id": uid, "first_name": short_name(uid), "last_name": None,
@@ -148,7 +183,7 @@ async def cors_and_auth(request: web.Request, handler):
                 log.exception("api error")
                 resp = json_error(500, "Что-то пошло не так")
     resp.headers["Access-Control-Allow-Origin"] = "*"
-    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Init-Data, X-Dev-User"
+    resp.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Init-Data, X-App-Token, X-Dev-User"
     resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, DELETE, OPTIONS"
     resp.headers["Cache-Control"] = "no-store"
     return resp

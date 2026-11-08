@@ -11,29 +11,26 @@ let whoWish = 'partner';
 let whoFact = 'partner';
 
 const TABS = [
-  ['wishes', 'Хотелки', 'gift'],
-  ['facts', 'Анкеты', 'star'],
-  ['letters', 'Письма', 'letter'],
-  ['plans', 'Планы', 'list'],
+  ['wishes', 'Хотелки', 'gift', 'c5'],
+  ['facts', 'Анкеты', 'star', 'c4'],
+  ['letters', 'Письма', 'letter', 'c2'],
+  ['plans', 'Планы', 'list', 'c6'],
 ];
 const SIZES = { s: 'Мелочь', m: 'Приятность', l: 'Мечта' };
 const CATS = { date: ['Свидание', 'heart', 'c2'], trip: ['Поездка', 'sparkle', 'c3'], food: ['Вкусное', 'bowl', 'c1'], home: ['Дома', 'moon', 'c4'], dream: ['Мечта', 'star', 'c5'] };
 const COLORS = { rose: '#FFB3C7', sky: '#A9D3FF', lilac: '#CDB8FF', mint: '#A8E6CC', sun: '#FFD98A' };
-const DESC = {
-  wishes: 'Пишите, что хочется — прямо или намёком. Можно тайно «забронировать» хотелку второго: он(а) не узнает, что ты уже готовишь сюрприз.',
-  facts: 'Всё важное друг о друге: размеры, любимые цветы, что поднимает настроение. Чтобы всегда попадать в точку.',
-  letters: 'Письма с замочком: откроются в нужный день или в нужный момент — «когда грустно», «когда скучаешь»…',
-  plans: 'Всё, что сделаем вместе после дембеля. Отмечайте галочками, когда сбудется.',
+const INTRO = {
+  wishes: ['Хотелки', 'Список того, что хочется получить в подарок. Свои хотелки видите вы оба. Если решишь подарить что-то из списка второго, нажми «Подарю я»: он(а) этого не увидит, и сюрприз останется сюрпризом.', 'Добавить хотелку'],
+  facts: ['Анкеты', 'Важное друг о друге: размеры, любимые цветы, что поднимает настроение. Заполни свою анкету, а анкету второго смотри, когда выбираешь подарок.', 'Заполнить мою анкету'],
+  letters: ['Письма с замочком', 'Письмо, которое откроется в выбранный день или в нужный момент: «когда грустно», «когда скучаешь». До этого второй увидит только запечатанный конверт.', 'Написать письмо'],
+  plans: ['Когда вернёшься', 'Общий список того, что сделаем вместе после дембеля. Добавляйте идеи и отмечайте галочкой, когда сбудется.', ''],
 };
 
 export function render(r) {
   root = r;
   root.innerHTML = `<div class="head"><div><h1>Важное</h1><p>Маленькие большие вещи друг о друге</p></div></div>
-    <div class="seg" id="ntabs">${TABS.map(([k, t, ic]) => `<button data-t="${k}">${icon(ic)}${t}</button>`).join('')}</div>
-    <div id="ncontent"><div class="empty">Загружаем…</div></div>
-    <button class="fab hidden" id="fab" aria-label="Добавить">${icon('plus')}</button>`;
-  $$('#ntabs button', root).forEach((b) => { b.onclick = () => { tab = b.dataset.t; haptic.sel(); draw(); }; });
-  $('#fab', root).onclick = () => (tab === 'wishes' ? wishSheet() : tab === 'letters' ? letterWrite() : null);
+    <div class="ntiles" id="ntabs"></div>
+    <div id="ncontent"><div class="empty">Загружаем…</div></div>`;
   load();
 }
 
@@ -49,20 +46,39 @@ async function load() {
 
 function set(d) { N = d.notes; if (root) draw(); }
 
+function counts() {
+  const me = S.me.id;
+  const inbox = N.letters.filter((l) => l.to === me);
+  return {
+    wishes: `${N.wishes.filter((w) => !w.done).length} в списке`,
+    facts: `заполнено ${Object.keys(N.facts[me] || {}).length} из ${N.fact_fields.length}`,
+    letters: inbox.length ? `${inbox.length} для тебя` : 'пока нет',
+    plans: `${N.plans.filter((p) => p.done).length} из ${N.plans.length} сбылось`,
+  };
+}
+
 function draw() {
   if (!root || !N) return;
-  $$('#ntabs button', root).forEach((b) => b.classList.toggle('on', b.dataset.t === tab));
-  $('#fab', root).classList.toggle('hidden', !(tab === 'wishes' || tab === 'letters'));
+  const cn = counts();
+  $('#ntabs', root).innerHTML = TABS.map(([k, t, ic, c]) => `<button class="ntile ${k === tab ? 'on' : ''}" data-t="${k}"><i class="ic ${c}">${icon(ic)}</i><div><b>${t}</b><span>${cn[k]}</span></div></button>`).join('');
+  $$('#ntabs button', root).forEach((b) => { b.onclick = () => { tab = b.dataset.t; haptic.sel(); draw(); }; });
+  const [title, text, cta] = INTRO[tab];
   const c = $('#ncontent', root);
-  c.innerHTML = `<p class="muted tiny" style="margin:-4px 4px 14px;font-weight:600">${DESC[tab]}</p>` + ({ wishes, facts, letters, plans }[tab])();
+  c.innerHTML = `<div class="card nintro"><h2>${icon(TABS.find((x) => x[0] === tab)[2])} ${title}</h2><p>${text}</p>${cta ? `<button class="btn block" id="cta">${icon('plus')} ${cta}</button>` : ''}</div>`
+    + ({ wishes, facts, letters, plans }[tab])();
+  const cb = $('#cta', c);
+  if (cb) cb.onclick = () => (tab === 'wishes' ? wishSheet() : tab === 'letters' ? letterWrite() : factsMine());
   ({ wishes: bindWishes, facts: bindFacts, letters: bindLetters, plans: bindPlans }[tab])(c);
 }
 
-function whoToggle(cur, id) {
+function factsMine() { whoFact = 'me'; draw(); setTimeout(() => $('#ncontent .facts')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }
+
+function whoToggle(cur, id, what) {
   const pa = S.partner, me = S.me;
+  const gen = pa ? (pa.name.endsWith('а') ? pa.name.slice(0, -1) + (/[гкхжчшщ]$/.test(pa.name.slice(0, -1)) ? 'и' : 'ы') : pa.name) : '';
   return `<div class="who-toggle" id="${id}">
-    ${pa ? `<button data-w="partner" class="${cur === 'partner' ? 'on' : ''}">${avatarHTML(pa, S.avatars[pa.id], 'sm')}${esc(pa.name)}</button>` : ''}
-    <button data-w="me" class="${cur === 'me' ? 'on' : ''}">${avatarHTML(me, S.avatars[me.id], 'sm')}Я</button></div>`;
+    ${pa ? `<button data-w="partner" class="${cur === 'partner' ? 'on' : ''}">${avatarHTML(pa, S.avatars[pa.id], 'sm')}${what} ${esc(gen)}</button>` : ''}
+    <button data-w="me" class="${cur === 'me' ? 'on' : ''}">${avatarHTML(me, S.avatars[me.id], 'sm')}${what === 'Анкета' ? 'Моя' : 'Мои'}</button></div>`;
 }
 
 // ================= ХОТЕЛКИ =================
@@ -70,7 +86,7 @@ function wishes() {
   const uid = whoWish === 'me' || !S.partner ? S.me.id : S.partner.id;
   const list = N.wishes.filter((w) => w.author === uid).sort((a, b) => a.done - b.done);
   const mine = uid === S.me.id;
-  return whoToggle(S.partner ? whoWish : 'me', 'wwho') + (list.length ? list.map((w) => `
+  return whoToggle(S.partner ? whoWish : 'me', 'wwho', 'Хотелки') + (list.length ? list.map((w) => `
     <div class="wish ${w.done ? 'done' : ''}" data-w="${w.id}">
       ${!mine && w.reserved_by ? `<div class="reserved">${w.reserved_by === S.me.id ? 'ты готовишь сюрприз' : 'забронировано'}</div>` : ''}
       <div class="w-title">${esc(w.title)}</div>
@@ -89,7 +105,8 @@ function wishes() {
              <button class="btn ghost sm ${w.done ? 'grow' : ''}" data-act="done">${icon('check')}${w.done ? 'Вернуть' : 'Подарено'}</button>
              ${isAdmin() ? `<button class="btn plain sm" data-act="delete" aria-label="Удалить">${icon('trash')}</button>` : ''}`}
       </div>
-    </div>`).join('') : emptyHTML(mine ? 'Здесь будут твои хотелки. Нажми «+», чтобы добавить первую — или оставь намёк.' : `${esc(S.partner?.name || '')} пока ничего не загадал(а)`, 'gift'));
+      ${!mine && !w.done && !w.reserved_by ? `<div class="hint">${icon('lock')}«Подарю я» — это секрет: ${esc(S.partner?.name || '')} не увидит</div>` : ''}
+    </div>`).join('') : emptyHTML(mine ? 'Здесь будут твои хотелки. Нажми «Добавить хотелку» выше.' : `${esc(S.partner?.name || '')} пока ничего не загадал(а)`, 'gift'));
 }
 
 function bindWishes(c) {
@@ -144,8 +161,8 @@ function facts() {
   const custom = Object.keys(data).filter((k) => !fields.some(([f]) => f === k)).map((k) => [k, k]);
   const all = [...fields, ...custom];
   const filled = all.filter(([k]) => data[k]).length;
-  return whoToggle(S.partner ? whoFact : 'me', 'fwho')
-    + `<div class="row" style="justify-content:space-between;margin:0 4px 10px"><span class="muted tiny" style="font-weight:800">Заполнено ${filled} из ${all.length}</span>${mine ? `<button class="chip" id="f-add">${icon('plus')}свой пункт</button>` : ''}</div>`
+  return whoToggle(S.partner ? whoFact : 'me', 'fwho', 'Анкета')
+    + `<div class="row" style="justify-content:space-between;margin:0 4px 10px"><span class="muted tiny" style="font-weight:800">Заполнено ${filled} из ${all.length}</span>${mine ? `<button class="chip" id="f-add">${icon('plus')}свой пункт</button>` : ''}</div>${mine ? `<div class="hint" style="margin:-4px 4px 12px">${icon('edit')}Нажми на любой пункт, чтобы заполнить или изменить</div>` : ''}`
     + `<div class="facts">${all.map(([k, t]) => `<button class="fact ${data[k] ? '' : 'empty-f'}" data-k="${esc(k)}" data-t="${esc(t)}" ${mine ? '' : 'data-ro'}><span>${esc(t)}</span><b>${data[k] ? esc(data[k]) : mine ? 'заполнить' : 'пока не заполнено'}</b></button>`).join('')}</div>`;
 }
 
@@ -200,10 +217,10 @@ function letters() {
   const out = N.letters.filter((l) => l.author === S.me.id);
   const env = (l, outgoing) => `<button class="env ${l.color} ${outgoing ? 'out' : ''} ${!outgoing && !l.locked && !l.opened_at && l.mode !== 'mood' && Date.now() / 1000 - l.created < 3 * 86400 ? 'new' : ''}" data-l="${l.id}">
     <span class="seal">${icon(l.locked ? 'lock' : 'heart')}</span><b>${esc(l.title)}</b><span>${esc(letterState(l))}</span></button>`;
-  return `<div class="card"><h2>${icon('letter')} Тебе<span class="spacer"></span><span class="chip gray">${inbox.length}</span></h2>
+  return `<div class="card"><h2>${icon('letter')} Письма для тебя<span class="spacer"></span><span class="chip gray">${inbox.length}</span></h2>
       ${inbox.length ? `<div class="letters">${inbox.map((l) => env(l, false)).join('')}</div>` : `<div class="empty">Пока писем нет. Но они обязательно будут</div>`}</div>
-    <div class="card"><h2>${icon('send')} От тебя<span class="spacer"></span><span class="chip gray">${out.length}</span></h2>
-      ${out.length ? `<div class="letters">${out.map((l) => env(l, true)).join('')}</div>` : `<div class="empty">Напиши письмо на будущее — нажми «+»</div>`}</div>`;
+    <div class="card"><h2>${icon('send')} Твои письма<span class="spacer"></span><span class="chip gray">${out.length}</span></h2>
+      ${out.length ? `<div class="letters">${out.map((l) => env(l, true)).join('')}</div>` : `<div class="empty">Писем от тебя пока нет</div>`}</div>`;
 }
 
 function bindLetters(c) {
@@ -292,7 +309,7 @@ function plans() {
   const list = [...N.plans].sort((a, b) => a.done - b.done);
   const done = N.plans.filter((p) => p.done).length;
   return `<div class="card">
-    <h2>${icon('heart')} Когда ты вернёшься<span class="spacer"></span><span class="chip">${done} / ${N.plans.length}</span></h2>
+    <h2>${icon('heart')} Наш список<span class="spacer"></span><span class="chip">${done} / ${N.plans.length}</span></h2>
     <div class="bar" style="margin-bottom:14px"><i style="width:${N.plans.length ? (done / N.plans.length) * 100 : 0}%"></i></div>
     <div class="choice" id="p-cat" style="margin-bottom:8px">${Object.entries(CATS).map(([k, [t]]) => `<button data-c="${k}" class="${k === planCat ? 'on' : ''}">${t}</button>`).join('')}</div>
     <div class="plan-add"><input id="p-inp" maxlength="200" placeholder="Например: встретить рассвет на крыше"><button class="icon-btn accent" id="p-add" style="width:46px;height:46px;flex:none">${icon('plus')}</button></div>
