@@ -111,7 +111,7 @@ async function boot() {
     me: d.me, partner: d.partner, settings: d.settings, dmb: d.dmb, events: d.events, pet: d.pet,
     species: d.species, foods: d.foods, stages: d.stages, stageXp: d.stage_xp, unread: d.unread,
     partnerOnline: !!(d.partner && d.partner.online), serverOffset: d.server_time * 1000 - Date.now(),
-    moods: d.moods || {}, emotions: d.emotions || {},
+    moods: d.moods || {}, emotions: d.emotions || {}, emotionGroups: d.emotion_groups || [],
   });
   applyTheme(S.settings.theme);
   loadAvatar(S.me.id);

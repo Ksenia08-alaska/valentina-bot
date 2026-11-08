@@ -270,6 +270,7 @@ async def h_bootstrap(request: web.Request) -> web.Response:
         unread=unread_count(store, uid),
         moods=moods_view(store),
         emotions=EMOTIONS,
+        emotion_groups=EMOTION_GROUPS,
         server_time=time.time(),
     )
 
@@ -670,7 +671,16 @@ EMOTIONS = {
     "calm": ("Спокойствие", "#7FCFB0"), "tender": ("Нежность", "#F7B39A"), "inspired": ("Вдохновение", "#8FB6F2"),
     "tired": ("Усталость", "#9AA3B5"), "sad": ("Грусть", "#6E93D6"), "anxious": ("Тревога", "#F0A35E"),
     "angry": ("Злость", "#E8676B"),
+    # смешные
+    "tease": ("Хочу побесить", "#F4A261"), "poop": ("Хочу какать", "#B08968"), "starving": ("Голодный как волк", "#F6B26B"),
+    "sleepy": ("Хочу спать", "#A9B4D0"), "cuddle": ("Хочу обнимашек", "#F7A8C4"), "lazy": ("Ленюсь", "#C2B8A3"),
+    "pouty": ("Капризничаю", "#E58FB5"), "cringe": ("Кринжую", "#9BC59D"),
 }
+EMOTION_GROUPS = [
+    ("Тёплые", ["happy", "love", "tender", "calm", "inspired", "miss"]),
+    ("Непростые", ["tired", "sad", "anxious", "angry"]),
+    ("Смешные", ["tease", "poop", "starving", "sleepy", "cuddle", "lazy", "pouty", "cringe"]),
+]
 last_mood_ping: dict[int, float] = {}
 MAX_MOODS_PER_DAY = 8
 
@@ -718,6 +728,13 @@ async def h_mood(request: web.Request) -> web.Response:
         cur = md.get(str(uid)) or {}
         items = cur.get("items", []) if cur.get("day") == today else []
         same = next((i for i in items if i["label"].lower() == entry["label"].lower()), None)
+        # на все чувства за день — общие 100%
+        others = sum(i.get("level", 0) for i in items if i is not same)
+        free = max(0, 100 - others)
+        if entry["level"] > free:
+            if free <= 0:
+                return json_error(400, "Все 100% уже заняты — уменьши или удали другое чувство")
+            entry["level"] = free
         if same:
             same.update(entry)
             is_new = False
@@ -756,7 +773,7 @@ async def h_mood_del(request: web.Request) -> web.Response:
 async def h_moods(request: web.Request) -> web.Response:
     store: Storage = request.app["store"]
     hist = [h for h in store.get("mood_history", []) if time.time() - h["ts"] < 14 * 86400]
-    return ok(moods=moods_view(store), history=hist[-80:], emotions=EMOTIONS)
+    return ok(moods=moods_view(store), history=hist[-80:], emotions=EMOTIONS, groups=EMOTION_GROUPS)
 
 
 # ---------- «Важное»: хотелки, анкета, письма, планы ----------

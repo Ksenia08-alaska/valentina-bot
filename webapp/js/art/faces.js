@@ -6,6 +6,7 @@ function exprFor(emotion) {
   return ({
     happy: 'happy', love: 'love', miss: 'miss', calm: 'calm', tender: 'tender', inspired: 'inspired',
     tired: 'tired', sad: 'sad', anxious: 'anxious', angry: 'angry',
+    tease: 'tease', poop: 'poop', starving: 'starving', sleepy: 'sleepy', cuddle: 'cuddle', lazy: 'lazy', pouty: 'pouty', cringe: 'cringe',
   })[emotion] || 'soft';
 }
 
@@ -32,6 +33,16 @@ function features(kind, cx, cy, level) {
     case 'sad': f += dot(L) + dot(R) + brows(1) + frown() + `<path d="M${R + 3},${cy + 4} q1.6,3 0,5 q-1.6,-2 0,-5z" fill="#8FC4F0"/>`; break;
     case 'anxious': f += dot(L) + dot(R) + brows(1) + `<path d="M${cx - 5},${my + 1} q1.6,-2 3.3,0 q1.6,2 3.3,0 q1.6,-2 3.3,0" stroke="${INK}" stroke-width="1.6" fill="none" stroke-linecap="round"/>` + `<path d="M${cx + 16},${cy - 10} q2,3.5 0,5.5 q-2,-2 0,-5.5z" fill="#8FC4F0"/>`; break;
     case 'angry': f += dot(L) + dot(R) + brows(-1) + frown(4); break;
+    case 'tease': f += arcUp(L) + dot(R) + `<path d="M${cx - 4},${my} q4,3 8,0" stroke="${INK}" stroke-width="1.8" fill="none" stroke-linecap="round"/><path d="M${cx},${my + 1} q0,6 3.4,6 q3.4,0 3,-5.6z" fill="#F07A93"/>`; break;
+    case 'poop': f += `<path d="M${L - 3.4},${cy - 2.4} l6.8,2.4 l-6.8,2.4 M${R + 3.4},${cy - 2.4} l-6.8,2.4 l6.8,2.4" stroke="${INK}" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
+      + `<path d="M${cx - 4},${my + 1} h8" stroke="${INK}" stroke-width="2" stroke-linecap="round"/><path d="M${cx + 17},${cy - 8} q2.2,4 0,6 q-2.2,-2 0,-6z" fill="#8FC4F0"/><path d="M${cx - 18},${cy - 12} q2,3.5 0,5.5 q-2,-2 0,-5.5z" fill="#8FC4F0"/>`; break;
+    case 'starving': f += dot(L) + dot(R) + `<ellipse cx="${cx}" cy="${my + 1.5}" rx="4.6" ry="4" fill="#9B4A5E"/><path d="M${cx + 3},${my + 4} q1,4 -0.6,6 q-1.6,-2 0.6,-6z" fill="#BFE3FF"/>`; break;
+    case 'sleepy': f += arcDown(L) + arcDown(R) + `<path d="M${cx - 2.5},${my + 1} h5" stroke="${INK}" stroke-width="1.8" stroke-linecap="round"/><text x="${cx + 15}" y="${cy - 9}" font-size="9" font-weight="800" fill="#A9B4D0">z</text><text x="${cx + 20}" y="${cy - 16}" font-size="7" font-weight="800" fill="#A9B4D0">z</text>`; break;
+    case 'cuddle': f += arcUp(L) + arcUp(R) + smile(4, 3.2); break;
+    case 'lazy': f += `<path d="M${L - 3.4},${cy + .5} h6.8 M${R - 3.4},${cy + .5} h6.8" stroke="${INK}" stroke-width="1.9" stroke-linecap="round"/><path d="M${L - 3},${cy - 1.6} q3,-1.4 6,0 M${R - 3},${cy - 1.6} q3,-1.4 6,0" stroke="${INK}" stroke-width="1.2" fill="none" opacity=".5"/>` + `<path d="M${cx - 3},${my + 1} q3,1 6,-1" stroke="${INK}" stroke-width="1.7" fill="none" stroke-linecap="round"/>`; break;
+    case 'pouty': f += dot(L) + dot(R) + brows(-1) + `<ellipse cx="${cx}" cy="${my + 1}" rx="2.6" ry="2" fill="#E07A93"/>`; break;
+    case 'cringe': f += `<path d="M${L - 3.4},${cy - 2.4} l6.8,2.4 l-6.8,2.4 M${R + 3.4},${cy - 2.4} l-6.8,2.4 l6.8,2.4" stroke="${INK}" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`
+      + `<path d="M${cx - 6},${my + 1} l2,-2 l2,2 l2,-2 l2,2 l2,-2" stroke="${INK}" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`; break;
     default: f += dot(L) + dot(R) + smile(3.5, 2.6);
   }
   return f;

@@ -854,3 +854,20 @@ textarea { resize: none; min-height: 96px; }
 .today-moods .tm span { font-size: 12px; color: var(--text2); font-style: italic; }
 .today-moods .tm button { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: var(--text2); background: var(--soft2); flex: none; }
 .today-moods .tm button .ico { width: 16px; height: 16px; }
+
+/* выбор чувств: раскрывающиеся группы и дневной лимит */
+.budget { margin: -4px 0 12px; }
+.budget .bline { display: flex; height: 10px; border-radius: 6px; overflow: hidden; background: var(--line); gap: 2px; }
+.budget .bline i { display: block; height: 100%; }
+.budget span { display: block; font-size: 12px; color: var(--text2); font-weight: 700; margin-top: 6px; text-align: center; }
+.emo-groups { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.egroup { border: 1px solid var(--line); border-radius: 18px; background: var(--soft2); overflow: hidden; }
+.egroup-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 12px 14px; color: var(--text); text-align: left; }
+.egroup-head b { flex: 1; font-size: 14.5px; }
+.egroup-head span { font-size: 12px; font-weight: 800; color: var(--text2); background: var(--line); border-radius: 9px; padding: 2px 8px; }
+.egroup-head .ico { width: 18px; height: 18px; transform: rotate(-90deg); transition: transform .3s var(--ease); color: var(--text2); }
+.egroup.open .egroup-head .ico { transform: rotate(90deg); }
+.egroup > :last-child { display: none; padding: 0 12px 12px; }
+.egroup.open > :last-child { display: flex; }
+.egroup.open > div:last-child:not(.emo-grid) { display: block; }
+.range:disabled { opacity: .4; }
