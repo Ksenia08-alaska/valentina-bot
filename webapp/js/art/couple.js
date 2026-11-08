@@ -37,15 +37,14 @@ export function girl({ x = 0, y = 0, s = 1, pose = 'hold', cls = '' } = {}) {
     : pose === 'hug' ? 'M14,-104 Q30,-104 40,-104' : 'M14,-104 Q19,-90 19,-76';
   const [hx2, hy2] = endOf(armD);
   return `<g class="${cls}"><g transform="translate(${x},${y}) scale(${s})">
-  <defs>${grad(id + 'h', '#6B4334', '#3B2420')}${grad(id + 'k', '#EAA9B9', '#D98FA3')}${grad(id + 's', '#FBF1E8', '#EEDCCD')}</defs>
+  <defs>${grad(id + 'h', '#D2AD7E', '#A9814F')}${grad(id + 'k', '#C3D0E6', '#9FB1D2')}${grad(id + 's', '#FBF1E8', '#EEDCCD')}</defs>
   <path d="M${-r - 3},${hy - 4} C${-r - 10},${hy + 30} ${-r - 2},${hy + 46} ${-r - 9},${hy + 66} C${-r - 13},${hy + 80} ${-r + 2},${hy + 92} ${-r + 10},${hy + 84}
            L${r - 10},${hy + 84} C${r - 2},${hy + 92} ${r + 13},${hy + 80} ${r + 9},${hy + 66} C${r + 2},${hy + 46} ${r + 10},${hy + 30} ${r + 3},${hy - 4}
            C${r + 2},${hy - r - 10} ${-r - 2},${hy - r - 10} ${-r - 3},${hy - 4}Z" fill="url(#${id}h)"/>
-  <rect x="-10" y="-48" width="7" height="42" rx="3.5" fill="${SKIN}"/><rect x="3" y="-48" width="7" height="42" rx="3.5" fill="${SKIN}"/>
+  <path d="M-17,-74 L-1,-74 L-3,-7 L-17,-7Z" fill="url(#${id}k)"/><path d="M1,-74 L17,-74 L17,-7 L3,-7Z" fill="url(#${id}k)"/>
+  <path d="M-9,-60 L-10,-9 M9,-60 L10,-9" stroke="#8C9FC2" stroke-width="1.2" opacity=".6"/>
   <path d="M-16,-2 q0,-8 9,-8 q5,0 6,4 l0,6z" fill="#FFFFFF"/><path d="M16,-2 q0,-8 -9,-8 q-5,0 -6,4 l0,6z" fill="#FFFFFF"/>
   <rect x="-17" y="-3" width="16" height="3.4" rx="1.7" fill="#E4D8DE"/><rect x="1" y="-3" width="16" height="3.4" rx="1.7" fill="#E4D8DE"/>
-  <path d="M-17,-74 L17,-74 L27,-40 Q0,-34 -27,-40Z" fill="url(#${id}k)"/>
-  <path d="M-6,-72 L-10,-38 M6,-72 L10,-38" stroke="#C97E93" stroke-width="1.4" opacity=".5"/>
   ${arm('M-14,-104 Q-21,-90 -20,-76', `url(#${id}s)`, 11)}
   <path d="M-18,-112 Q0,-118 18,-112 Q23,-92 20,-70 Q0,-66 -20,-70 Q-23,-92 -18,-112Z" fill="url(#${id}s)"/>
   <path d="M-19,-73 Q0,-69 19,-73" stroke="#E2CDBC" stroke-width="3" fill="none" stroke-dasharray="1.6 2.4"/>
@@ -60,7 +59,7 @@ export function girl({ x = 0, y = 0, s = 1, pose = 'hold', cls = '' } = {}) {
            C${-r + 4},${hy + 2} ${-r + 6},${hy - 12} ${-8},${hy - r + 6} Q${-2},${hy - r + 2} 0,${hy - r - 1}
            Q${2},${hy - r + 2} ${8},${hy - r + 6} C${r - 6},${hy - 12} ${r - 4},${hy + 2} ${r - 5},${hy + 18}
            C${r - 6},${hy + 30} ${r - 2},${hy + 34} ${r + 2},${hy + 26} C${r + 6},${hy - 6} ${r + 4},${hy - r - 4} 0,${hy - r - 4}Z" fill="url(#${id}h)"/>
-  <path d="M-14,${hy - r + 4} q-8,10 -9,24 M15,${hy - r + 6} q7,8 8,20" stroke="#8A5A46" stroke-width="2" fill="none" stroke-linecap="round" opacity=".55"/>
+  <path d="M-14,${hy - r + 4} q-8,10 -9,24 M15,${hy - r + 6} q7,8 8,20" stroke="#EED5AE" stroke-width="2" fill="none" stroke-linecap="round" opacity=".7"/>
   <circle cx="${-r + 1}" cy="${hy + 10}" r="1.8" fill="#F1D6A0"/><circle cx="${r - 1}" cy="${hy + 10}" r="1.8" fill="#F1D6A0"/>
 </g></g>`;
 }
@@ -94,11 +93,8 @@ export function boy({ x = 0, y = 0, s = 1, pose = 'hold', walk = false, cls = ''
   <circle cx="${r - 1}" cy="${hy + 11}" r="1.8" fill="#DCDFE6"/>
   <ellipse cx="0" cy="${hy}" rx="${r}" ry="${r * 1.03}" fill="${SKIN}"/>
   ${face(0, hy + 3, r, {})}
-  <path d="M${-r + 1},${hy - 4} Q${-r + 1},${hy - 18} 0,${hy - 19} Q${r - 1},${hy - 18} ${r - 1},${hy - 4} Q${r - 5},${hy - 12} ${r - 12},${hy - 11} Q${r - 18},${hy - 7} ${4},${hy - 10} Q${-4},${hy - 6} ${-10},${hy - 11} Q${-r + 8},${hy - 13} ${-r + 1},${hy - 4}Z" fill="url(#${id}r)"/>
-  <path d="M${-r - 1},${hy - 12} C${-r - 1},${hy - r - 14} ${r + 1},${hy - r - 14} ${r + 1},${hy - 12} Q0,${hy - 20} ${-r - 1},${hy - 12}Z" fill="#26232C"/>
-  <path d="M${r - 4},${hy - 22} q12,-6 22,-2 q-8,6 -20,8z" fill="#1D1B22"/>
-  <path d="M-6,${hy - 17} q6,-4 12,0" stroke="#7A4E35" stroke-width="3" fill="none" stroke-linecap="round"/>
-  <path d="M-12,${hy - r - 2} q8,-4 16,-3" stroke="#FFFFFF" stroke-width="2" fill="none" stroke-linecap="round" opacity=".18"/>
+  <path d="M${-r},${hy + 2} C${-r - 3},${hy - r - 15} ${r + 3},${hy - r - 17} ${r},${hy + 2} Q${r - 3},${hy - 8} ${r - 8},${hy - 10} Q${r - 12},${hy - 4} ${r - 16},${hy - 11} Q${4},${hy - 6} ${-2},${hy - 12} Q${-8},${hy - 5} ${-12},${hy - 12} Q${-r + 6},${hy - 6} ${-r + 4},${hy - 9} Q${-r + 1},${hy - 4} ${-r},${hy + 2}Z" fill="url(#${id}r)"/>
+  <path d="M-14,${hy - r + 1} q10,-5 22,-2 M4,${hy - r - 2} q8,1 13,6" stroke="#A9744F" stroke-width="2.2" fill="none" stroke-linecap="round" opacity=".6"/>
 </g></g>`;
 }
 

@@ -180,19 +180,6 @@ async def cmd_start(m: Message):
         await m.answer(pet_text(uid), reply_markup=app_inline("🐾 Выбрать питомца"))
 
 
-async def announce_update(bot: Bot) -> None:
-    """Один раз рассказываем нам двоим про обновление (и ставим новую клавиатуру)."""
-    if not WEBAPP_URL or store.get("announced:app_v2"):
-        return
-    for uid in webapp_api.ALLOWED:
-        try:
-            await bot.send_message(uid, "Обновление 💞\n\n" + update_text(), reply_markup=kb_for(uid))
-            await bot.send_message(uid, pet_text(uid), reply_markup=app_inline("🐾 Выбрать питомца"))
-        except TelegramAPIError as e:
-            logging.info("announce %s: %s", uid, e)
-    await store.set("announced:app_v2", True)
-
-
 # ---------- мини-приложение ----------
 @dp.message(F.text.in_({BTN_APP, OLD_BTN_APP}))
 @dp.message(Command("app"))
@@ -415,7 +402,6 @@ async def main():
 
     reminders = asyncio.create_task(webapp_api.reminders_loop(app))
     await setup_menu_buttons(bot)
-    await announce_update(bot)
     await bot.delete_webhook(drop_pending_updates=True)
     try:
         await dp.start_polling(bot)
