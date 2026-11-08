@@ -37,9 +37,11 @@ function features(kind, cx, cy, level) {
   return f;
 }
 
-// who: 'girl' | 'boy'; mood: {emotion, color, level}
-export function portrait(who, mood, size = 120) {
+// who: 'girl' | 'boy'; mood: {emotion, color, level} или список таких за день
+export function portrait(who, moodIn, size = 120) {
   const id = 'pf' + (++N);
+  const list = Array.isArray(moodIn) ? moodIn : (moodIn ? [moodIn] : []);
+  const mood = list.length ? list.reduce((a, b) => (b.level > a.level ? b : a)) : null;
   const col = (mood && mood.color) || '#8A8A94';
   const level = mood ? mood.level : 0;
   const kind = mood ? exprFor(mood.emotion) : 'soft';
@@ -74,8 +76,17 @@ export function portrait(who, mood, size = 120) {
       <linearGradient id="${id}hb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8A5A3B"/><stop offset="1" stop-color="#5C3825"/></linearGradient>
     </defs>
     <circle cx="60" cy="60" r="54" fill="none" stroke="currentColor" stroke-opacity=".1" stroke-width="6"/>
-    <circle cx="60" cy="60" r="54" fill="none" stroke="${col}" stroke-width="6" stroke-linecap="round"
-      stroke-dasharray="${(C * level / 100).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 60 60)" class="ring"/>
+    ${(() => {
+      // кольцо: каждое чувство — свой цветной отрезок, длина по силе чувства
+      let off = 0, out = '';
+      const per = list.length ? C / list.length : 0;
+      list.forEach((m) => {
+        const len = Math.max(2, per * m.level / 100 - (list.length > 1 ? 4 : 0));
+        out += `<circle cx="60" cy="60" r="54" fill="none" stroke="${m.color}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${len.toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-off).toFixed(1)}" transform="rotate(-90 60 60)" class="ring"/>`;
+        off += per;
+      });
+      return out;
+    })()}
     <circle cx="60" cy="60" r="48" fill="${col}" fill-opacity=".16"/>
     <g clip-path="url(#${id}c)">${bust}</g>
   </svg>`;

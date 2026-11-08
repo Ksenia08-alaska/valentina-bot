@@ -672,55 +672,91 @@ EMOTIONS = {
     "angry": ("Злость", "#E8676B"),
 }
 last_mood_ping: dict[int, float] = {}
+MAX_MOODS_PER_DAY = 8
+
+
+def moods_today(store: Storage, uid: int) -> list:
+    """Чувства человека за сегодня (по Минску). В 00:00 список обнуляется сам."""
+    d = store.get("moods_day", {}).get(str(uid)) or {}
+    return d.get("items", []) if d.get("day") == day_str() else []
 
 
 def moods_view(store: Storage) -> dict:
-    m = store.get("moods", {})
-    return {str(u): m.get(str(u)) for u in ALLOWED}
+    return {str(u): moods_today(store, u) for u in ALLOWED}
 
 
-async def h_mood(request: web.Request) -> web.Response:
-    store: Storage = request.app["store"]
-    uid = request["uid"]
-    d = await body(request)
+def parse_mood(d: dict) -> dict | str:
     emo = d.get("emotion")
     if emo == "custom":
         label = clean_text(d.get("label"), 24)
         color = str(d.get("color") or "")
         if not label:
-            return json_error(400, "Как назвать это чувство?")
+            return "Как назвать это чувство?"
         if not (len(color) == 7 and color.startswith("#") and all(c in "0123456789abcdefABCDEF" for c in color[1:])):
             color = "#C9B3EA"
     elif emo in EMOTIONS:
         label, color = EMOTIONS[emo]
     else:
-        return json_error(400, "Выбери чувство")
+        return "Выбери чувство"
     try:
         level = max(0, min(100, int(d.get("level", 60))))
     except (TypeError, ValueError):
         level = 60
-    note = clean_text(d.get("note"), 120)
-    entry = {"emotion": emo, "label": label, "color": color, "level": level, "note": note, "ts": time.time()}
-    async with store.edit("moods", {}) as moods:
-        prev = moods.get(str(uid)) or {}
-        moods[str(uid)] = entry
+    return {"emotion": emo, "label": label, "color": color, "level": level,
+            "note": clean_text(d.get("note"), 120), "ts": time.time()}
+
+
+async def h_mood(request: web.Request) -> web.Response:
+    """Добавить чувство (или обновить такое же) в сегодняшний список."""
+    store: Storage = request.app["store"]
+    uid = request["uid"]
+    entry = parse_mood(await body(request))
+    if isinstance(entry, str):
+        return json_error(400, entry)
+    today = day_str()
+    async with store.edit("moods_day", {}) as md:
+        cur = md.get(str(uid)) or {}
+        items = cur.get("items", []) if cur.get("day") == today else []
+        same = next((i for i in items if i["label"].lower() == entry["label"].lower()), None)
+        if same:
+            same.update(entry)
+            is_new = False
+        else:
+            if len(items) >= MAX_MOODS_PER_DAY:
+                return json_error(400, f"На сегодня уже {MAX_MOODS_PER_DAY} чувств — удали одно, чтобы добавить новое")
+            entry["id"] = uuid.uuid4().hex[:8]
+            items.append(entry)
+            is_new = True
+        md[str(uid)] = {"day": today, "items": items}
     async with store.edit("mood_history", []) as hist:
         hist.append({"uid": uid, **entry})
-        del hist[:-200]
+        del hist[:-300]
     partner = partner_of(uid)
-    changed = prev.get("label") != label
-    if partner and (changed or time.time() - last_mood_ping.get(uid, 0) > 3600):
+    if partner and (is_new or time.time() - last_mood_ping.get(uid, 0) > 3600):
         last_mood_ping[uid] = time.time()
-        extra = f"\n«{html.escape(note)}»" if note else ""
-        await notify(request.app, partner, f"💭 {short_name(uid)} сейчас: <b>{html.escape(label)}</b> — {level}%{extra}",
+        extra = f"\n«{html.escape(entry['note'])}»" if entry["note"] else ""
+        await notify(request.app, partner,
+                     f"💭 {short_name(uid)} сейчас: <b>{html.escape(entry['label'])}</b> — {entry['level']}%{extra}",
                      kind="mood")
+    return ok(moods=moods_view(store))
+
+
+async def h_mood_del(request: web.Request) -> web.Response:
+    store: Storage = request.app["store"]
+    uid = request["uid"]
+    mid = request.match_info["id"]
+    async with store.edit("moods_day", {}) as md:
+        cur = md.get(str(uid)) or {}
+        if cur.get("day") == day_str():
+            cur["items"] = [i for i in cur.get("items", []) if i.get("id") != mid]
+            md[str(uid)] = cur
     return ok(moods=moods_view(store))
 
 
 async def h_moods(request: web.Request) -> web.Response:
     store: Storage = request.app["store"]
     hist = [h for h in store.get("mood_history", []) if time.time() - h["ts"] < 14 * 86400]
-    return ok(moods=moods_view(store), history=hist[-60:], emotions=EMOTIONS)
+    return ok(moods=moods_view(store), history=hist[-80:], emotions=EMOTIONS)
 
 
 # ---------- «Важное»: хотелки, анкета, письма, планы ----------
@@ -740,6 +776,12 @@ LETTER_MOODS = {
 
 def notes_default() -> dict:
     return {"wishes": [], "facts": {}, "letters": [], "plans": []}
+
+
+def fact_fields(notes: dict) -> list:
+    hidden = set(notes.get("fields_hidden", []))
+    base = [list(f) for f in FACT_FIELDS if f[0] not in hidden]
+    return base + [list(f) for f in notes.get("fields_custom", [])]
 
 
 def notes_view(notes: dict, uid: int) -> dict:
@@ -763,12 +805,36 @@ def notes_view(notes: dict, uid: int) -> dict:
             l["locked"] = False
         letters.append(l)
     return {"wishes": wishes, "facts": notes.get("facts", {}), "letters": letters,
-            "plans": notes["plans"], "fact_fields": FACT_FIELDS, "moods": LETTER_MOODS}
+            "plans": notes["plans"], "fact_fields": fact_fields(notes), "moods": LETTER_MOODS}
 
 
 async def h_notes(request: web.Request) -> web.Response:
     store: Storage = request.app["store"]
     return ok(notes=notes_view(store.get("notes", notes_default()), request["uid"]))
+
+
+async def h_fields(request: web.Request) -> web.Response:
+    """Админ: добавить общий пункт анкеты (POST {label}) или убрать (DELETE /{key})."""
+    store: Storage = request.app["store"]
+    uid = request["uid"]
+    if uid != ADMIN_ID:
+        return json_error(403, "Только для админа")
+    async with store.edit("notes", notes_default()) as notes:
+        if request.method == "POST":
+            d = await body(request)
+            label = clean_text(d.get("label"), 40)
+            if not label:
+                return json_error(400, "Напиши название пункта")
+            notes.setdefault("fields_custom", []).append(["f_" + uuid.uuid4().hex[:6], label])
+        else:
+            key = request.match_info["key"]
+            if any(f[0] == key for f in FACT_FIELDS):
+                hid = notes.setdefault("fields_hidden", [])
+                if key not in hid:
+                    hid.append(key)
+            notes["fields_custom"] = [f for f in notes.get("fields_custom", []) if f[0] != key]
+        view = notes_view(notes, uid)
+    return ok(notes=view)
 
 
 async def h_notes_post(request: web.Request) -> web.Response:
@@ -894,7 +960,7 @@ async def h_notes_patch(request: web.Request) -> web.Response:
 # Только про новые возможности, без мелких правок внешнего вида.
 CHANGELOG = [
     ("2026-11-08", [
-        "💭 Новый раздел «Мы сейчас»: делитесь настроением и видите, что чувствует второй",
+        "💭 Новый раздел «Мы сейчас»: несколько чувств за день, которые видит второй; в 00:00 всё обнуляется",
         "🐾 Питомец растёт по дням: новые стадии на 10, 50, 100, 200, 300 и 365 день",
         "🔥 3 восстановления огонька в месяц — если кто-то пропустил день, огонёк спасётся сам",
         "🤒 Если кто-то не зашёл, питомцу становится плохо — заходите оба",
@@ -903,22 +969,32 @@ CHANGELOG = [
         "✏️ Имя питомца можно менять когда угодно",
         "📱 Приложение можно добавить на экран «Домой» (Профиль)",
     ]),
+    ("2026-11-08b", [
+        "💭 «Мы сейчас»: можно добавить несколько чувств за день и удалить любое — в 00:00 всё обнуляется",
+        "📝 Админ может добавлять и удалять общие пункты анкет",
+    ]),
 ]
 
 
 async def announce_changes(bot: Bot, store: Storage, kb_for) -> None:
+    """Присылает нам двоим все ещё не отправленные записи из CHANGELOG (одним сообщением)."""
     if not WEBAPP_URL or not CHANGELOG:
         return
-    version, items = CHANGELOG[-1]
-    if store.get("changelog_sent") == version:
+    sent = store.get("changelog_sent_list")
+    if sent is None:
+        old = store.get("changelog_sent")
+        sent = [v for v, _ in CHANGELOG if old and v <= old]
+    new = [(v, items) for v, items in CHANGELOG if v not in sent]
+    if not new:
         return
+    items = [i for _, its in new for i in its]
     text = "✨ <b>Приложение обновлено!</b>\n\nЧто нового:\n" + "\n".join(items)
     for uid in ALLOWED:
         try:
             await bot.send_message(uid, text, reply_markup=kb_for(uid))
         except TelegramAPIError as e:
             log.info("changelog %s: %s", uid, e)
-    await store.set("changelog_sent", version)
+    await store.set("changelog_sent_list", sent + [v for v, _ in new])
 
 
 # ---------- напоминания ----------
@@ -1047,7 +1123,10 @@ def setup(app: web.Application, bot: Bot, store: Storage) -> None:
     r.add_post("/api/pet/xp", h_pet_xp)
     r.add_get("/api/moods", h_moods)
     r.add_post("/api/mood", h_mood)
+    r.add_delete("/api/mood/{id}", h_mood_del)
     r.add_get("/api/notes", h_notes)
+    r.add_post("/api/notes/fields", h_fields)
+    r.add_delete("/api/notes/fields/{key}", h_fields)
     r.add_post("/api/notes/{kind}", h_notes_post)
     r.add_patch("/api/notes/{kind}/{id}", h_notes_patch)
     if WEBAPP_DIR.exists():

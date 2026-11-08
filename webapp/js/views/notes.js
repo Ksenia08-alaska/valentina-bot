@@ -162,7 +162,7 @@ function facts() {
   const all = [...fields, ...custom];
   const filled = all.filter(([k]) => data[k]).length;
   return whoToggle(S.partner ? whoFact : 'me', 'fwho', 'Анкета')
-    + `<div class="row" style="justify-content:space-between;margin:0 4px 10px"><span class="muted tiny" style="font-weight:800">Заполнено ${filled} из ${all.length}</span>${mine ? `<button class="chip" id="f-add">${icon('plus')}свой пункт</button>` : ''}</div>${mine ? `<div class="hint" style="margin:-4px 4px 12px">${icon('edit')}Нажми на любой пункт, чтобы заполнить или изменить</div>` : ''}`
+    + `<div class="row" style="justify-content:space-between;margin:0 4px 10px"><span class="muted tiny" style="font-weight:800">Заполнено ${filled} из ${all.length}</span><span class="row" style="gap:6px">${isAdmin() ? `<button class="chip gray" id="f-admin">${icon('edit')}общие пункты</button>` : ''}${mine ? `<button class="chip" id="f-add">${icon('plus')}свой пункт</button>` : ''}</span></div>${mine ? `<div class="hint" style="margin:-4px 4px 12px">${icon('edit')}Нажми на любой пункт, чтобы заполнить или изменить</div>` : ''}`
     + `<div class="facts">${all.map(([k, t]) => `<button class="fact ${data[k] ? '' : 'empty-f'}" data-k="${esc(k)}" data-t="${esc(t)}" ${mine ? '' : 'data-ro'}><span>${esc(t)}</span><b>${data[k] ? esc(data[k]) : mine ? 'заполнить' : 'пока не заполнено'}</b></button>`).join('')}</div>`;
 }
 
@@ -176,6 +176,8 @@ function bindFacts(c) {
   });
   const add = $('#f-add', c);
   if (add) add.onclick = () => factSheet('', '');
+  const adm = $('#f-admin', c);
+  if (adm) adm.onclick = fieldsSheet;
 }
 
 function factSheet(key, title) {
@@ -342,5 +344,33 @@ function bindPlans(c) {
         try { set(await api(`/notes/plans/${id}`, { method: 'PATCH', body: { action: 'delete' } })); } catch (e) { toast(e.message, 'err'); }
       }
     };
+  });
+}
+
+// Админ: общие пункты анкеты (видны в анкетах у обоих)
+function fieldsSheet() {
+  sheet({
+    title: 'Общие пункты анкет',
+    html: `<p class="muted tiny" style="text-align:center;margin:-6px 0 12px">Эти пункты видны в анкетах у вас обоих. Удалённый пункт пропадёт у обоих (ответы сохранятся, если вернуть его).</p>
+      <div id="fl" class="today-moods"></div>
+      <div class="plan-add"><input id="nf" maxlength="40" placeholder="Новый пункт, например: Любимое место"><button class="icon-btn accent" id="nf-add" style="width:46px;height:46px;flex:none">${icon('plus')}</button></div>`,
+    onMount(sh) {
+      const list = () => {
+        $('#fl', sh).innerHTML = N.fact_fields.map(([k, t]) => `<div class="tm" style="--c:var(--accent)"><i></i><div class="grow"><b>${esc(t)}</b></div><button data-k="${esc(k)}" aria-label="Удалить">${icon('trash')}</button></div>`).join('');
+        $$('[data-k]', sh).forEach((b) => {
+          b.onclick = async () => {
+            try { set(await api('/notes/fields/' + encodeURIComponent(b.dataset.k), { method: 'DELETE' })); haptic.tap(); list(); } catch (e) { toast(e.message, 'err'); }
+          };
+        });
+      };
+      const addF = async () => {
+        const v = $('#nf', sh).value.trim();
+        if (!v) return;
+        try { set(await api('/notes/fields', { method: 'POST', body: { label: v } })); $('#nf', sh).value = ''; haptic.ok(); list(); } catch (e) { toast(e.message, 'err'); }
+      };
+      $('#nf-add', sh).onclick = addF;
+      $('#nf', sh).onkeydown = (e) => { if (e.key === 'Enter') addF(); };
+      list();
+    },
   });
 }
