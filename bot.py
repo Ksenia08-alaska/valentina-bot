@@ -11,23 +11,30 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
+    MenuButtonWebApp,
     Message,
     ReplyKeyboardMarkup,
+    WebAppInfo,
 )
 
+import webapp_api
 from reasons import REASONS
+from storage import Storage
 
 # ---------- настройки ----------
 BOT_TOKEN = os.environ["BOT_TOKEN"]                     # токен берём из переменных окружения
-ADMIN_ID = int(os.getenv("ADMIN_ID", "1482422281"))
+ADMIN_ID = webapp_api.ADMIN_ID                          # переменная окружения ADMIN_ID
+PARTNER_ID = webapp_api.PARTNER_ID                      # переменная окружения PARTNER_ID (Дима)
+WEBAPP_URL = webapp_api.WEBAPP_URL                      # ссылка на мини-приложение (Vercel)
 PORT = int(os.getenv("PORT", "10000"))                  # Render сам передаёт PORT
-USERS_FILE = Path("users.json")
+USERS_FILE = Path("users.json")                         # старый файл — переносим в хранилище
+store = Storage(os.getenv("DATABASE_URL") or None)
 MAX_MEDIA = 3        # максимум фото/видео в одном сообщении
 MAX_ITEMS = 10       # максимум частей (текст + медиа) в одном сообщении
 PAGE = 10            # причин на одной странице
@@ -43,6 +50,7 @@ BTN_SEND = "💌 Отправить сообщение"
 BTN_REASONS = "💯 101 причина"
 BTN_PLAYLIST = "🎶 Наш плейлист"
 BTN_WRITE = "✉️ Написать пользователю"
+BTN_APP = "🐾 Наше приложение"
 
 USER_KB = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text=BTN_SEND)],
@@ -54,6 +62,10 @@ ADMIN_KB = ReplyKeyboardMarkup(
               [KeyboardButton(text=BTN_REASONS), KeyboardButton(text=BTN_PLAYLIST)]],
     resize_keyboard=True,
 )
+# для двоих, у кого есть доступ к мини-приложению, добавляем ещё одну строку
+APP_ROW = [KeyboardButton(text=BTN_APP)]
+USER_APP_KB = ReplyKeyboardMarkup(keyboard=USER_KB.keyboard + [APP_ROW], resize_keyboard=True)
+ADMIN_APP_KB = ReplyKeyboardMarkup(keyboard=ADMIN_KB.keyboard + [APP_ROW], resize_keyboard=True)
 
 DRAFT_KB = InlineKeyboardMarkup(inline_keyboard=[[
     InlineKeyboardButton(text="📨 Отправить", callback_data="send"),
@@ -64,30 +76,45 @@ dp = Dispatcher()
 logging.basicConfig(level=logging.INFO)
 
 # ---------- пользователи ----------
-def load_users() -> dict:
-    try:
-        return json.loads(USERS_FILE.read_text("utf-8"))
-    except Exception:
-        return {}
+users: dict[str, str] = {}
 
 
-users: dict[str, str] = load_users()
+async def load_users() -> None:
+    users.clear()
+    users.update(store.get("users", {}))
+    if not users and USERS_FILE.exists():           # переносим старый users.json
+        try:
+            users.update(json.loads(USERS_FILE.read_text("utf-8")))
+            await store.set("users", users)
+        except Exception:
+            pass
 
 
-def remember(u) -> None:
+async def remember(u) -> None:
     if u.id == ADMIN_ID:
         return
     name = u.full_name + (f" (@{u.username})" if u.username else "")
     if users.get(str(u.id)) != name:
         users[str(u.id)] = name
         try:
-            USERS_FILE.write_text(json.dumps(users, ensure_ascii=False, indent=1), "utf-8")
-        except Exception:
-            pass
+            await store.set("users", users)
+        except Exception as e:
+            logging.warning("cannot save users: %s", e)
+
+
+def has_app(uid: int) -> bool:
+    return bool(WEBAPP_URL) and uid in webapp_api.ALLOWED
 
 
 def kb_for(uid: int):
-    return ADMIN_KB if uid == ADMIN_ID else USER_KB
+    if uid == ADMIN_ID:
+        return ADMIN_APP_KB if has_app(uid) else ADMIN_KB
+    return USER_APP_KB if has_app(uid) else USER_KB
+
+
+def app_inline() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="✨ Открыть приложение", web_app=WebAppInfo(url=WEBAPP_URL))]])
 
 
 # ---------- черновики сообщений ----------
@@ -118,11 +145,13 @@ def reply_button(cb_data: str) -> InlineKeyboardMarkup:
 # ---------- /start ----------
 @dp.message(CommandStart())
 async def cmd_start(m: Message):
-    remember(m.from_user)
+    await remember(m.from_user)
     drafts.pop(m.from_user.id, None)
     if m.from_user.id == ADMIN_ID:
         await m.answer("👑 Привет, админ! Здесь можно написать любому, кто заходил в бота.",
-                       reply_markup=ADMIN_KB)
+                       reply_markup=kb_for(m.from_user.id))
+        if has_app(m.from_user.id):
+            await m.answer("🐾 Наше мини-приложение:", reply_markup=app_inline())
         return
     await m.answer(
         "Привет, любимый 💗\n\n"
@@ -131,14 +160,32 @@ async def cmd_start(m: Message):
         "💯 Тут спрятана 101 причина, почему я тебя люблю.\n"
         "🎶 И наши песни.\n\n"
         "Жми на кнопки внизу 👇",
-        reply_markup=USER_KB,
+        reply_markup=kb_for(m.from_user.id),
     )
+    if has_app(m.from_user.id):
+        await m.answer("🐾 А ещё у нас есть своё маленькое приложение: таймер до дембеля, "
+                       "наш питомец и важные мелочи друг о друге 💞", reply_markup=app_inline())
+
+
+# ---------- мини-приложение ----------
+@dp.message(F.text == BTN_APP)
+@dp.message(Command("app"))
+async def menu_app(m: Message):
+    if not has_app(m.from_user.id):
+        await m.answer("Приложение пока недоступно 🙈")
+        return
+    await m.answer("🐾 Открывай 👇", reply_markup=app_inline())
+
+
+@dp.message(Command("myid"))
+async def cmd_myid(m: Message):
+    await m.answer(f"Твой Telegram ID: <code>{m.from_user.id}</code>")
 
 
 # ---------- меню ----------
 @dp.message(F.text == BTN_SEND)
 async def menu_send(m: Message):
-    remember(m.from_user)
+    await remember(m.from_user)
     if m.from_user.id == ADMIN_ID:
         return await menu_write(m)
     await start_compose(m.bot, m.from_user.id, ADMIN_ID)
@@ -279,11 +326,11 @@ async def menu_playlist(m: Message):
 @dp.message()
 async def any_message(m: Message):
     uid = m.from_user.id
-    remember(m.from_user)
+    await remember(m.from_user)
     d = drafts.get(uid)
     if d is None:
         if uid == ADMIN_ID:
-            await m.answer("Выбери действие в меню 👇", reply_markup=ADMIN_KB)
+            await m.answer("Выбери действие в меню 👇", reply_markup=kb_for(uid))
             return
         drafts[uid] = d = {"to": ADMIN_ID, "items": [], "media": 0}
 
@@ -313,17 +360,40 @@ async def health(_request):
     return web.Response(text="ok, bot is alive 💗")
 
 
+async def setup_menu_buttons(bot: Bot) -> None:
+    """Кнопка «Приложение» слева от поля ввода — только у нас двоих."""
+    if not WEBAPP_URL:
+        return
+    for uid in webapp_api.ALLOWED:
+        try:
+            await bot.set_chat_menu_button(
+                chat_id=uid,
+                menu_button=MenuButtonWebApp(text="Наше 💞", web_app=WebAppInfo(url=WEBAPP_URL)))
+        except TelegramAPIError as e:
+            logging.info("menu button for %s: %s", uid, e)
+
+
 async def main():
+    await store.init()
+    await load_users()
+    bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+
     app = web.Application()
     app.router.add_get("/", health)
+    webapp_api.setup(app, bot, store)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
     logging.info("web server on port %s", PORT)
 
-    bot = Bot(BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    reminders = asyncio.create_task(webapp_api.reminders_loop(app))
+    await setup_menu_buttons(bot)
     await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        reminders.cancel()
+        await store.close()
 
 
 if __name__ == "__main__":

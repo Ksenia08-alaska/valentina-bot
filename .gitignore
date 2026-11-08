@@ -2,4 +2,7 @@ venv/
 __pycache__/
 *.pyc
 users.json
+data.json
+data.tmp
 .env
+dev-data.json
