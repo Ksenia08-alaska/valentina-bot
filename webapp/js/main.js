@@ -22,9 +22,9 @@ let current = null;
 
 // ---------- тема ----------
 export function applyTheme(theme) {
-  const t = !theme ? 'dusk' : theme === 'auto' ? (tgColorScheme() === 'dark' ? 'dusk' : 'light') : theme;
+  const t = !theme ? 'graphite' : theme === 'auto' ? (tgColorScheme() === 'dark' ? 'graphite' : 'milk') : theme;
   document.documentElement.dataset.theme = t;
-  try { localStorage.setItem('theme', theme || 'dusk'); } catch (e) { /* */ }
+  try { localStorage.setItem('theme', theme || 'graphite'); } catch (e) { /* */ }
   requestAnimationFrame(() => {
     const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
     if (bg) setHeaderColor(bg);
@@ -87,7 +87,7 @@ function showFatal(title, text) {
 async function boot() {
   setupTelegram();
   let saved = 'auto';
-  try { saved = localStorage.getItem('theme') || 'dusk'; } catch (e) { /* */ }
+  try { saved = localStorage.getItem('theme') || 'graphite'; } catch (e) { /* */ }
   applyTheme(saved);
 
   if (!tg?.initData && !devUser && !appToken) {
@@ -111,6 +111,7 @@ async function boot() {
     me: d.me, partner: d.partner, settings: d.settings, dmb: d.dmb, events: d.events, pet: d.pet,
     species: d.species, foods: d.foods, stages: d.stages, stageXp: d.stage_xp, unread: d.unread,
     partnerOnline: !!(d.partner && d.partner.online), serverOffset: d.server_time * 1000 - Date.now(),
+    moods: d.moods || {}, emotions: d.emotions || {},
   });
   applyTheme(S.settings.theme);
   loadAvatar(S.me.id);

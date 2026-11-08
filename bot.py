@@ -402,6 +402,7 @@ async def main():
 
     reminders = asyncio.create_task(webapp_api.reminders_loop(app))
     await setup_menu_buttons(bot)
+    await webapp_api.announce_changes(bot, store, kb_for)
     await bot.delete_webhook(drop_pending_updates=True)
     try:
         await dp.start_polling(bot)

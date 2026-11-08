@@ -30,71 +30,116 @@ function endOf(d) {
 }
 
 // pose: 'hold' (рука к партнёру) | 'down' | 'wave' | 'hug'
+// Стиль «без лиц»: взрослые пропорции, чистые формы, мягкие градиенты, только румянец.
+const SK_L = '#F8DCCD', SK_D = '#EBC1AD';
+
+function hand(x, y, rot = 0) {
+  return `<g transform="translate(${x},${y}) rotate(${rot})"><ellipse rx="4.2" ry="5.2" fill="${SK_L}"/><path d="M-3.2,1.5 q3.2,3 6.4,0" stroke="${SK_D}" stroke-width="1" fill="none" opacity=".7"/></g>`;
+}
+function sleeve(d, fill, cuff, w = 10) {
+  // рукав + манжета (последние ~6px пути)
+  return `<path d="${d}" fill="none" stroke="${fill}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`
+    + `<path d="${d}" fill="none" stroke="${cuff}" stroke-width="${w}" stroke-linecap="butt" stroke-dasharray="0 1000" />`;
+}
+function sneaker(x, flip = 1) {
+  return `<g transform="translate(${x},0) scale(${flip},1)">
+    <path d="M-9,-11 Q-9,-15 -4,-15 L3,-15 Q7,-15 9,-10 Q14,-8 14,-4 L14,-1 L-10,-1 L-10,-6 Z" fill="#FFFFFF"/>
+    <rect x="-10.5" y="-3.4" width="25" height="3.6" rx="1.8" fill="#E6E1E8"/>
+    <path d="M-3,-14 L-1,-10 M0,-14.5 L2,-10.5 M3,-14.5 L5,-10.5" stroke="#D9D2DC" stroke-width=".9" stroke-linecap="round"/>
+    <path d="M5,-7 Q9,-8 12,-5" stroke="#F2A1B5" stroke-width="1.4" fill="none" stroke-linecap="round"/></g>`;
+}
+
 export function girl({ x = 0, y = 0, s = 1, pose = 'hold', cls = '' } = {}) {
   const id = 'g' + (++N);
-  const r = 27, hy = -142;
-  const armD = pose === 'hold' ? 'M14,-104 Q24,-88 33,-78' : pose === 'wave' ? 'M14,-104 Q30,-112 30,-132'
-    : pose === 'hug' ? 'M14,-104 Q30,-104 40,-104' : 'M14,-104 Q19,-90 19,-76';
-  const [hx2, hy2] = endOf(armD);
+  const armR = pose === 'hold' ? 'M15,-172 Q22,-152 27,-133' : pose === 'wave' ? 'M15,-172 Q28,-182 30,-205'
+    : pose === 'hug' ? 'M15,-172 Q30,-168 40,-164' : 'M15,-172 Q19,-152 19,-131';
+  const [hx, hy] = endOf(armR);
   return `<g class="${cls}"><g transform="translate(${x},${y}) scale(${s})">
-  <defs>${grad(id + 'h', '#D2AD7E', '#A9814F')}${grad(id + 'k', '#C3D0E6', '#9FB1D2')}${grad(id + 's', '#FBF1E8', '#EEDCCD')}</defs>
-  <path d="M${-r - 3},${hy - 4} C${-r - 10},${hy + 30} ${-r - 2},${hy + 46} ${-r - 9},${hy + 66} C${-r - 13},${hy + 80} ${-r + 2},${hy + 92} ${-r + 10},${hy + 84}
-           L${r - 10},${hy + 84} C${r - 2},${hy + 92} ${r + 13},${hy + 80} ${r + 9},${hy + 66} C${r + 2},${hy + 46} ${r + 10},${hy + 30} ${r + 3},${hy - 4}
-           C${r + 2},${hy - r - 10} ${-r - 2},${hy - r - 10} ${-r - 3},${hy - 4}Z" fill="url(#${id}h)"/>
-  <path d="M-17,-74 L-1,-74 L-3,-7 L-17,-7Z" fill="url(#${id}k)"/><path d="M1,-74 L17,-74 L17,-7 L3,-7Z" fill="url(#${id}k)"/>
-  <path d="M-9,-60 L-10,-9 M9,-60 L10,-9" stroke="#8C9FC2" stroke-width="1.2" opacity=".6"/>
-  <path d="M-16,-2 q0,-8 9,-8 q5,0 6,4 l0,6z" fill="#FFFFFF"/><path d="M16,-2 q0,-8 -9,-8 q-5,0 -6,4 l0,6z" fill="#FFFFFF"/>
-  <rect x="-17" y="-3" width="16" height="3.4" rx="1.7" fill="#E4D8DE"/><rect x="1" y="-3" width="16" height="3.4" rx="1.7" fill="#E4D8DE"/>
-  ${arm('M-14,-104 Q-21,-90 -20,-76', `url(#${id}s)`, 11)}
-  <path d="M-18,-112 Q0,-118 18,-112 Q23,-92 20,-70 Q0,-66 -20,-70 Q-23,-92 -18,-112Z" fill="url(#${id}s)"/>
-  <path d="M-19,-73 Q0,-69 19,-73" stroke="#E2CDBC" stroke-width="3" fill="none" stroke-dasharray="1.6 2.4"/>
-  <path d="M-7,-113 Q0,-108 7,-113" stroke="#E2CDBC" stroke-width="3" fill="none"/>
-  <path transform="translate(9,-96) scale(.32)" d="M0,10 C-15,0 -16,-13 -7.5,-15 C-2.5,-16 0,-12 0,-9 C0,-12 2.5,-16 7.5,-15 C16,-13 15,0 0,10Z" fill="#E68FA5"/>
-  ${arm(armD, `url(#${id}s)`, 11)}
-  <circle cx="${hx2}" cy="${hy2}" r="4.6" fill="${SKIN}"/><circle cx="-20" cy="-74" r="4.6" fill="${SKIN}"/>
-  <rect x="-5" y="${hy + 20}" width="10" height="12" rx="4" fill="${SKIN_S}"/>
-  <ellipse cx="0" cy="${hy}" rx="${r}" ry="${r * 1.04}" fill="${SKIN}"/>
-  ${face(0, hy + 2, r, { lashes: true })}
-  <path d="M0,${hy - r - 4} C${-r - 4},${hy - r - 4} ${-r - 6},${hy - 6} ${-r - 2},${hy + 26} C${-r + 2},${hy + 34} ${-r + 6},${hy + 30} ${-r + 5},${hy + 18}
-           C${-r + 4},${hy + 2} ${-r + 6},${hy - 12} ${-8},${hy - r + 6} Q${-2},${hy - r + 2} 0,${hy - r - 1}
-           Q${2},${hy - r + 2} ${8},${hy - r + 6} C${r - 6},${hy - 12} ${r - 4},${hy + 2} ${r - 5},${hy + 18}
-           C${r - 6},${hy + 30} ${r - 2},${hy + 34} ${r + 2},${hy + 26} C${r + 6},${hy - 6} ${r + 4},${hy - r - 4} 0,${hy - r - 4}Z" fill="url(#${id}h)"/>
-  <path d="M-14,${hy - r + 4} q-8,10 -9,24 M15,${hy - r + 6} q7,8 8,20" stroke="#EED5AE" stroke-width="2" fill="none" stroke-linecap="round" opacity=".7"/>
-  <circle cx="${-r + 1}" cy="${hy + 10}" r="1.8" fill="#F1D6A0"/><circle cx="${r - 1}" cy="${hy + 10}" r="1.8" fill="#F1D6A0"/>
+  <defs>
+    ${grad(id + 'h', '#DDB98B', '#B48A59')}${grad(id + 'hf', '#E3C394', '#C29A68')}
+    ${grad(id + 's', '#F7EEE4', '#E8D9C9')}${grad(id + 'j', '#C2D2EA', '#9FB3D5')}
+    ${grad(id + 'f', SK_L, '#F2CDBB')}
+  </defs>
+  <!-- волосы сзади -->
+  <path d="M0,-226 C-19,-226 -21,-208 -20,-190 C-21,-170 -22,-150 -21,-128 Q-17,-122 -12,-127 Q-8,-121 -4,-126 L4,-126 Q8,-121 12,-127 Q17,-122 21,-128 C22,-150 21,-170 20,-190 C21,-208 19,-226 0,-226Z" fill="url(#${id}h)"/>
+  <!-- джинсы -->
+  <path d="M-17,-122 L-1,-122 L-2,-12 L-19,-12 Z" fill="url(#${id}j)"/>
+  <path d="M1,-122 L17,-122 L19,-12 L2,-12 Z" fill="url(#${id}j)"/>
+  <path d="M-1.5,-118 L-2,-12 M1.5,-118 L2,-12" stroke="#8EA2C6" stroke-width="1"/>
+  <path d="M-15,-110 L-17,-14 M15,-110 L17,-14" stroke="#D3DEEF" stroke-width="1" opacity=".8"/>
+  <path d="M-12,-70 q2,-3 5,-2 M8,-74 q2,-3 5,-1" stroke="#8EA2C6" stroke-width=".9" fill="none" opacity=".7"/>
+  ${sneaker(-10, -1)}${sneaker(10, 1)}
+  <!-- шея -->
+  <path d="M-5,-190 L5,-190 L5.5,-178 L-5.5,-178Z" fill="${SK_D}"/>
+  <!-- левый рукав (свисает) -->
+  <path d="M-15,-172 Q-21,-152 -21,-131" fill="none" stroke="url(#${id}s)" stroke-width="10" stroke-linecap="round"/>
+  <path d="M-21.3,-137 L-21,-131" stroke="#E2D1BF" stroke-width="10" stroke-linecap="round"/>
+  ${hand(-21, -125, 6)}
+  <!-- свитер -->
+  <path d="M-18,-181 Q-8,-185 0,-184 Q8,-185 18,-181 Q22,-165 21,-150 Q21,-134 19,-120 Q0,-116 -19,-120 Q-21,-134 -21,-150 Q-22,-165 -18,-181Z" fill="url(#${id}s)"/>
+  <path d="M-19,-124 Q0,-120 19,-124" stroke="#E0CDB9" stroke-width="5" fill="none" opacity=".9"/>
+  <path d="M-17,-124 v4 M-12,-123.4 v4 M-7,-123 v4 M-2,-122.8 v4 M3,-122.8 v4 M8,-123 v4 M13,-123.4 v4 M18,-124 v4" stroke="#D7C3AE" stroke-width=".8"/>
+  <path d="M-7,-184 Q0,-179 7,-184" stroke="#E0CDB9" stroke-width="3" fill="none"/>
+  <path d="M-12,-160 q4,6 2,14 M11,-158 q-3,7 -1,15" stroke="#E2D2C1" stroke-width="1.2" fill="none"/>
+  <!-- правый рукав -->
+  <path d="${armR}" fill="none" stroke="url(#${id}s)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  ${hand(hx + (pose === 'hold' ? 1 : 0), hy + 5, pose === 'hold' ? -20 : 0)}
+  <!-- голова -->
+  <path d="M0,-226 C9.5,-226 15.5,-219 15.5,-208 C15.5,-197.5 9,-189 0,-188 C-9,-189 -15.5,-197.5 -15.5,-208 C-15.5,-219 -9.5,-226 0,-226Z" fill="url(#${id}f)"/>
+  <ellipse cx="-8.5" cy="-202" rx="4.2" ry="2.5" fill="#F4A3B4" opacity=".45"/><ellipse cx="8.5" cy="-202" rx="4.2" ry="2.5" fill="#F4A3B4" opacity=".45"/>
+  <!-- волосы спереди: прямой пробор -->
+  <path d="M0,-228 C-12,-228 -19,-221 -19.5,-208 C-20,-196 -19,-184 -18,-170 Q-16,-166 -14,-171 C-14.5,-186 -14.5,-198 -12,-210 Q-7,-221 0,-224Z" fill="url(#${id}hf)"/>
+  <path d="M0,-228 C12,-228 19,-221 19.5,-208 C20,-196 19,-184 18,-170 Q16,-166 14,-171 C14.5,-186 14.5,-198 12,-210 Q7,-221 0,-224Z" fill="url(#${id}hf)"/>
+  <path d="M-4,-224 Q-14,-216 -16.5,-196 M4,-224 Q14,-216 16.5,-196 M-9,-223 Q-17,-212 -17.5,-188" stroke="#EED4AC" stroke-width="1.1" fill="none" stroke-linecap="round" opacity=".8"/>
+  <path d="M0,-228 L0,-223" stroke="#A9804F" stroke-width="1" opacity=".6"/>
 </g></g>`;
 }
 
 export function boy({ x = 0, y = 0, s = 1, pose = 'hold', walk = false, cls = '' } = {}) {
   const id = 'b' + (++N);
-  const r = 27, hy = -150;
-  const armD = pose === 'hold' ? 'M-17,-112 Q-28,-94 -34,-82' : pose === 'hug' ? 'M-17,-112 Q-32,-112 -42,-110'
-    : pose === 'wave' ? 'M-17,-112 Q-34,-120 -34,-140' : 'M-17,-112 Q-24,-96 -23,-80';
-  const [hx2, hy2] = endOf(armD);
-  const lx = walk ? 4 : 0;
+  const armL = pose === 'hold' ? 'M-18,-188 Q-27,-162 -32,-138' : pose === 'hug' ? 'M-18,-188 Q-34,-182 -44,-176'
+    : pose === 'wave' ? 'M-18,-188 Q-32,-198 -34,-222' : 'M-18,-188 Q-23,-164 -23,-140';
+  const [hx, hy] = endOf(armL);
+  const lx = walk ? 3 : 0;
   return `<g class="${cls}"><g transform="translate(${x},${y}) scale(${s})">
-  <defs>${grad(id + 'h', '#45414E', '#2A2731')}${grad(id + 'p', '#5E616B', '#464851')}${grad(id + 'r', '#7A4E35', '#4E3122')}</defs>
-  <path d="M-19,-70 L-2,-70 L${-3 - lx},-10 L${-21 - lx},-10Z" fill="url(#${id}p)"/>
-  <path d="M2,-70 L19,-70 L${21 + lx},-10 L${3 + lx},-10Z" fill="url(#${id}p)"/>
-  <rect x="${-20 - lx / 2}" y="-44" width="8" height="10" rx="2" fill="#3F4149" opacity=".7"/><rect x="${12 + lx / 2}" y="-44" width="8" height="10" rx="2" fill="#3F4149" opacity=".7"/>
-  <g transform="translate(${-lx},0)"><path d="M-25,-3 q0,-10 12,-10 q8,0 10,5 l0,5z" fill="#FFFFFF"/><rect x="-26" y="-4" width="24" height="5" rx="2.5" fill="#E7E2E8"/><path d="M-20,-9 q5,-2 9,1" stroke="#E68FA5" stroke-width="2" fill="none" stroke-linecap="round"/></g>
-  <g transform="translate(${lx},0)"><path d="M25,-3 q0,-10 -12,-10 q-8,0 -10,5 l0,5z" fill="#FFFFFF"/><rect x="2" y="-4" width="24" height="5" rx="2.5" fill="#E7E2E8"/><path d="M20,-9 q-5,-2 -9,1" stroke="#E68FA5" stroke-width="2" fill="none" stroke-linecap="round"/></g>
-  ${arm('M17,-112 Q25,-96 24,-80', `url(#${id}h)`, 14)}
-  <path d="M-22,-120 Q0,-126 22,-120 Q29,-96 26,-66 Q0,-61 -26,-66 Q-29,-96 -22,-120Z" fill="url(#${id}h)"/>
-  <path d="M-14,-122 Q0,-110 14,-122 Q12,-128 0,-128 Q-12,-128 -14,-122Z" fill="#3A3642"/>
-  <path d="M-4,-114 v12 M4,-114 v12" stroke="#ECE6EE" stroke-width="1.6" stroke-linecap="round"/>
-  <path d="M-12,-84 h24 l-3,12 h-18z" fill="#36333F"/>
-  <path d="M-25,-69 Q0,-64 25,-69" stroke="#24212A" stroke-width="3" fill="none"/>
-  <path d="M-11,-121 Q0,-100 11,-121" stroke="#DCDFE6" stroke-width="2.2" fill="none" stroke-dasharray="2.4 1.4"/>
-  <path transform="translate(0,-104) scale(.3)" d="M0,10 C-15,0 -16,-13 -7.5,-15 C-2.5,-16 0,-12 0,-9 C0,-12 2.5,-16 7.5,-15 C16,-13 15,0 0,10Z" fill="#F2B8C6"/>
-  ${arm(armD, `url(#${id}h)`, 14)}
-  <circle cx="${hx2}" cy="${hy2}" r="5" fill="${SKIN}"/><circle cx="24" cy="-78" r="5" fill="${SKIN}"/>
-  <rect x="-6" y="${hy + 20}" width="12" height="12" rx="4" fill="${SKIN_S}"/>
-  <ellipse cx="${-r + 1}" cy="${hy + 6}" rx="4.5" ry="6" fill="${SKIN_S}"/><ellipse cx="${r - 1}" cy="${hy + 6}" rx="4.5" ry="6" fill="${SKIN_S}"/>
-  <circle cx="${r - 1}" cy="${hy + 11}" r="1.8" fill="#DCDFE6"/>
-  <ellipse cx="0" cy="${hy}" rx="${r}" ry="${r * 1.03}" fill="${SKIN}"/>
-  ${face(0, hy + 3, r, {})}
-  <path d="M${-r},${hy + 2} C${-r - 3},${hy - r - 15} ${r + 3},${hy - r - 17} ${r},${hy + 2} Q${r - 3},${hy - 8} ${r - 8},${hy - 10} Q${r - 12},${hy - 4} ${r - 16},${hy - 11} Q${4},${hy - 6} ${-2},${hy - 12} Q${-8},${hy - 5} ${-12},${hy - 12} Q${-r + 6},${hy - 6} ${-r + 4},${hy - 9} Q${-r + 1},${hy - 4} ${-r},${hy + 2}Z" fill="url(#${id}r)"/>
-  <path d="M-14,${hy - r + 1} q10,-5 22,-2 M4,${hy - r - 2} q8,1 13,6" stroke="#A9744F" stroke-width="2.2" fill="none" stroke-linecap="round" opacity=".6"/>
+  <defs>
+    ${grad(id + 'h', '#3A3641', '#28252E')}${grad(id + 'p', '#62656F', '#4B4E57')}
+    ${grad(id + 'r', '#8A5A3B', '#5C3825')}${grad(id + 'f', SK_L, '#F2CDBB')}
+  </defs>
+  <!-- брюки -->
+  <path d="M-19,-130 L-1,-130 L${-2 - lx},-12 L${-20 - lx},-12 Z" fill="url(#${id}p)"/>
+  <path d="M1,-130 L19,-130 L${20 + lx},-12 L${2 + lx},-12 Z" fill="url(#${id}p)"/>
+  <path d="M-1.5,-126 L${-2 - lx},-12 M1.5,-126 L${2 + lx},-12" stroke="#42444C" stroke-width="1"/>
+  <path d="M-17,-118 L${-19 - lx},-14 M17,-118 L${19 + lx},-14" stroke="#73767F" stroke-width="1" opacity=".8"/>
+  <path d="M${-20 - lx},-16 h18 M${2 + lx},-16 h18" stroke="#42444C" stroke-width="2" opacity=".6"/>
+  ${sneaker(-11 - lx, -1)}${sneaker(11 + lx, 1)}
+  <!-- шея -->
+  <path d="M-6,-206 L6,-206 L6.5,-192 L-6.5,-192Z" fill="${SK_D}"/>
+  <!-- капюшон за шеей -->
+  <path d="M-14,-196 Q-16,-206 -8,-206 L8,-206 Q16,-206 14,-196 Q0,-188 -14,-196Z" fill="#2E2B35"/>
+  <!-- правый рукав (свисает) -->
+  <path d="M18,-188 Q23,-164 23,-140" fill="none" stroke="url(#${id}h)" stroke-width="12" stroke-linecap="round"/>
+  <path d="M23,-146 L23,-140" stroke="#2A2730" stroke-width="12" stroke-linecap="round"/>
+  ${hand(23, -133, -4)}
+  <!-- худи -->
+  <path d="M-22,-197 Q-10,-201 0,-200 Q10,-201 22,-197 Q26,-178 25,-160 Q25,-144 23,-128 Q0,-124 -23,-128 Q-25,-144 -25,-160 Q-26,-178 -22,-197Z" fill="url(#${id}h)"/>
+  <path d="M-12,-197 Q0,-186 12,-197" stroke="#46424F" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M-4,-190 L-4.5,-174 M4,-190 L4.5,-174" stroke="#E9E4EC" stroke-width="1.3" stroke-linecap="round"/>
+  <rect x="-5.6" y="-175" width="2.4" height="3.2" rx="1" fill="#C9CDD6"/><rect x="3.4" y="-175" width="2.4" height="3.2" rx="1" fill="#C9CDD6"/>
+  <path d="M-13,-153 L13,-153 L16,-136 L-16,-136Z" fill="#2E2B35"/>
+  <path d="M-13,-153 L-16,-136 M13,-153 L16,-136" stroke="#46424F" stroke-width="1.2"/>
+  <path d="M-23,-132 Q0,-128 23,-132" stroke="#2A2730" stroke-width="5" fill="none"/>
+  <path d="M-16,-176 q3,8 1,16 M15,-174 q-3,8 -1,15" stroke="#46424F" stroke-width="1.2" fill="none"/>
+  <!-- левый рукав -->
+  <path d="${armL}" fill="none" stroke="url(#${id}h)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  ${hand(hx - (pose === 'hold' ? 1 : 0), hy + 6, pose === 'hold' ? 20 : 0)}
+  <!-- уши и голова -->
+  <ellipse cx="-16.5" cy="-222" rx="3.2" ry="4.8" fill="${SK_D}"/><ellipse cx="16.5" cy="-222" rx="3.2" ry="4.8" fill="${SK_D}"/>
+  <path d="M0,-244 C10.5,-244 17,-236 17,-224 C17,-213 11,-205 0,-204 C-11,-205 -17,-213 -17,-224 C-17,-236 -10.5,-244 0,-244Z" fill="url(#${id}f)"/>
+  <ellipse cx="-9" cy="-217" rx="4.2" ry="2.4" fill="#F4A3B4" opacity=".38"/><ellipse cx="9" cy="-217" rx="4.2" ry="2.4" fill="#F4A3B4" opacity=".38"/>
+  <!-- короткие каштановые волосы -->
+  <path d="M-17.5,-224 C-19,-238 -12,-250 1,-250 C13,-250 19.5,-240 17.5,-224 Q16,-231 13,-234 Q8,-232 4,-235 Q-2,-231 -8,-234 Q-13,-233 -15,-229 Q-16.5,-227 -17.5,-224Z" fill="url(#${id}r)"/>
+  <path d="M-8,-246 Q2,-249 10,-244 M-12,-240 Q-4,-244 4,-241" stroke="#A9744F" stroke-width="1.1" fill="none" stroke-linecap="round" opacity=".75"/>
 </g></g>`;
 }
 
@@ -103,15 +148,15 @@ export function heart(x, y, s = 1, fill = '#F2A1B5', cls = '') {
 }
 
 export function coupleHero({ done = false } = {}) {
-  return `<svg viewBox="0 -18 300 218" class="couple-hero" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  return `<svg viewBox="0 -14 300 214" class="couple-hero" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <defs><radialGradient id="halo" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="#F2A1B5" stop-opacity=".28"/><stop offset="1" stop-color="#F2A1B5" stop-opacity="0"/></radialGradient></defs>
     <ellipse cx="150" cy="110" rx="140" ry="95" fill="url(#halo)"/>
-    <ellipse cx="150" cy="190" rx="92" ry="7" fill="#000" opacity=".16"/>
-    <g class="float-heart">${heart(150, -2, 0.95, '#F2A1B5')}</g>
-    <g class="float-heart h2">${heart(124, -8, 0.45, '#E9C9A0')}</g>
-    <g class="float-heart h3">${heart(176, -10, 0.4, '#C9B3EA')}</g>
-    ${girl({ x: 116, y: 190, s: 1.02, pose: done ? 'hug' : 'hold', cls: 'sway-l' })}
-    ${boy({ x: 186, y: 190, s: 1.0, pose: done ? 'hug' : 'hold', cls: 'sway-r' })}
+    <ellipse cx="150" cy="192" rx="70" ry="6" fill="#000" opacity=".18"/>
+    <g class="float-heart">${heart(150, 44, 0.62, '#F2A1B5')}</g>
+    <g class="float-heart h2">${heart(141, 28, 0.3, '#E9C9A0')}</g>
+    <g class="float-heart h3">${heart(156, 14, 0.26, '#C9B3EA')}</g>
+    ${girl({ x: 124, y: 192, s: 0.74, pose: done ? 'hug' : 'hold', cls: 'sway-l' })}
+    ${boy({ x: 175, y: 192, s: 0.74, pose: done ? 'hug' : 'hold', cls: 'sway-r' })}
   </svg>`;
 }
 
@@ -131,7 +176,7 @@ export function journey(progress) {
     <path d="M${startX},92 H${bx}" stroke="url(#jg)" stroke-width="5" stroke-linecap="round"/>
     ${marks}
     <g transform="translate(${endX + 30},90)"><path d="M-16,0 V-20 L0,-33 L16,-20 V0Z" fill="#F2A1B5" fill-opacity=".22"/><path d="M-19,-18 L0,-35 L19,-18" fill="none" stroke="#F2A1B5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${heart(0, -14, 0.4, '#F2A1B5')}</g>
-    ${girl({ x: endX + (done ? 4 : 8), y: 95, s: 0.36, pose: done ? 'hug' : 'wave' })}
-    ${boy({ x: done ? endX - 12 : bx, y: 95, s: 0.35, pose: done ? 'hug' : 'down', walk: !done, cls: done ? '' : 'walker' })}
+    ${girl({ x: endX + (done ? 4 : 8), y: 95, s: 0.27, pose: done ? 'hug' : 'wave' })}
+    ${boy({ x: done ? endX - 12 : bx, y: 95, s: 0.27, pose: done ? 'hug' : 'down', walk: !done, cls: done ? '' : 'walker' })}
   </svg>`;
 }

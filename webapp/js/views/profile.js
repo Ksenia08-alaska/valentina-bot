@@ -3,18 +3,23 @@ import { api } from '../api.js';
 import { $, $$, esc, toast, avatarHTML, fmtAgo, fmtDate, days } from '../ui.js';
 import { icon, flameSVG } from '../art/icons.js';
 import { petSVG } from '../art/pets.js';
-import { haptic } from '../tg.js';
+import { haptic, tg } from '../tg.js';
 
 let root = null, offs = [];
 
 const THEMES = [
+  ['graphite', 'Графит', 'linear-gradient(135deg,#111113,#2A2A30)', '#F2A1B5'],
+  ['midnight', 'Полночь', 'linear-gradient(135deg,#0D111C,#22224A)', '#8FB6F2'],
+  ['oled', 'Чёрная', 'linear-gradient(135deg,#000,#1A1A1A)', '#F2A1B5'],
+  ['mocha', 'Мокко', 'linear-gradient(135deg,#15110E,#3A2A20)', '#E7B48E'],
+  ['forest', 'Лес', 'linear-gradient(135deg,#0E1411,#1E3A2C)', '#8FD4B0'],
+  ['plum', 'Слива', 'linear-gradient(135deg,#120E19,#33224A)', '#CDB4EC'],
   ['dusk', 'Сумерки', 'linear-gradient(135deg,#130F17,#3A2036)', '#F2A1B5'],
-  ['auto', 'Как в Telegram', 'linear-gradient(135deg,#FFF5F7 50%,#130F17 50%)', '#F2A1B5'],
-  ['light', 'Светлая', 'linear-gradient(135deg,#FFF5F7,#FFE3EB)', '#FF5C8A'],
-  ['dark', 'Тёмная', 'linear-gradient(135deg,#1E1424,#2A1D32)', '#FF79A3'],
+  ['auto', 'Как в Telegram', 'linear-gradient(135deg,#F6F2ED 50%,#111113 50%)', '#F2A1B5'],
+  ['milk', 'Молочная', 'linear-gradient(135deg,#F6F2ED,#EADBCB)', '#C98B6B'],
+  ['light', 'Розовая', 'linear-gradient(135deg,#FFF5F7,#FFE3EB)', '#FF5C8A'],
   ['peach', 'Персик', 'linear-gradient(135deg,#FFF4EC,#FFD9C2)', '#FF7A59'],
   ['lavender', 'Лаванда', 'linear-gradient(135deg,#F7F3FF,#DCCBFF)', '#8C6CF2'],
-  ['night', 'Ночь', 'linear-gradient(135deg,#0D1330,#27346E)', '#7FA6FF'],
   ['mint', 'Мята', 'linear-gradient(135deg,#F0FBF6,#BDEFD9)', '#22B39A'],
 ];
 const NOTIFY = [
@@ -22,6 +27,7 @@ const NOTIFY = [
   ['chat', 'Сообщения из чата', 'Если ты не в приложении', 'chat', 'c2'],
   ['pet', 'Питомец', 'Голод, огонёк, рост и выбор', 'paw', 'c6'],
   ['notes', 'Письма и хотелки', 'Когда тебе пишут что-то новое', 'letter', 'c7'],
+  ['mood', 'Настроение', 'Когда второй делится, что чувствует', 'heart', 'c4'],
 ];
 
 export function render(r) {
@@ -53,6 +59,9 @@ function draw() {
       ${p.status === 'alive' ? `<div style="display:flex;align-items:center;gap:8px"><span style="width:46px;flex:none">${petSVG(p.species, { stage: p.stage, mood: 'happy' })}</span><span><b style="font-size:16px">${esc(p.name || 'Малыш')}</b><span>${esc(p.stage_name)}</span></span></div>
       <div><b>${p.xp}</b><span>опыта у питомца</span></div>` : `<div><b>—</b><span>питомец ещё не выбран</span></div><div><b>${S.events.length}</b><span>важных дат</span></div>`}
     </div></div>
+    <div class="card" id="home-card"><h2>${icon('sparkle')} На экран «Домой»</h2>
+      <p class="muted tiny" style="margin:-4px 0 12px;font-weight:600">Иконка приложения на экране телефона: открывается в одно касание, без поиска бота. Настоящие виджеты с цифрами iPhone разрешает только обычным приложениям из App Store, а это приложение работает внутри Telegram.</p>
+      <button class="btn block" id="home-add">${icon('plus')} Добавить на экран</button></div>
     <div class="card"><h2>${icon('palette')} Тема</h2><div class="themes">
       ${THEMES.map(([k, t, bg, ac]) => `<button class="theme ${S.settings.theme === k ? 'on' : ''}" data-th="${k}"><i style="background:${bg};--tc:${ac}"></i>${t}</button>`).join('')}
     </div></div>
@@ -66,6 +75,7 @@ function draw() {
   $$('[data-n]', root).forEach((b) => { b.onclick = () => toggleNotify(b.dataset.n, b); });
   const tc = $('#to-chat', root);
   if (tc) tc.onclick = () => emit('go', { tab: 'chat' });
+  setupHome();
 }
 
 async function setTheme(t) {
@@ -81,4 +91,21 @@ async function toggleNotify(k, btn) {
   S.settings.notify[k] = !S.settings.notify[k];
   btn.classList.toggle('on', S.settings.notify[k]);
   try { await api('/settings', { method: 'POST', body: { notify: { [k]: S.settings.notify[k] } } }); } catch (e) { toast(e.message, 'err'); }
+}
+
+function setupHome() {
+  const btn = $('#home-add', root);
+  if (!btn) return;
+  const can = tg && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0') && tg.addToHomeScreen;
+  if (!can) {
+    btn.outerHTML = `<p class="muted tiny" style="margin:0">Обнови Telegram до последней версии — тогда здесь появится кнопка. Пока можно открыть меню «⋯» вверху приложения и выбрать «Добавить на экран „Домой“».</p>`;
+    return;
+  }
+  try {
+    tg.checkHomeScreenStatus((status) => {
+      if (status === 'added') { btn.disabled = true; btn.innerHTML = `${icon('check')} Уже на экране`; }
+    });
+  } catch (e) { /* */ }
+  btn.onclick = () => { haptic.tap(); try { tg.addToHomeScreen(); } catch (e) { toast('Не получилось. Попробуй через меню «⋯»'); } };
+  tg.onEvent?.('homeScreenAdded', () => { btn.disabled = true; btn.innerHTML = `${icon('check')} Уже на экране`; toast('Готово! Иконка на экране «Домой»'); });
 }

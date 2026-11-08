@@ -62,8 +62,9 @@ DEFAULT_EVENTS = [
      "month": 2, "day": 3, "kind": "birthday", "builtin": True},
 ]
 
-THEMES = {"dusk", "auto", "light", "dark", "peach", "lavender", "night", "mint"}
-DEFAULT_THEME = "dusk"
+THEMES = {"graphite", "midnight", "oled", "mocha", "forest", "plum", "dusk", "auto",
+          "light", "milk", "peach", "lavender", "mint", "dark", "night"}
+DEFAULT_THEME = "graphite"
 
 presence: dict[int, float] = {}          # uid -> когда последний раз был в приложении
 last_chat_ping: dict[int, float] = {}    # uid -> когда последний раз уведомляли о чате
@@ -114,7 +115,7 @@ def settings_of(store: Storage, uid: int) -> dict:
     s = store.get(f"settings:{uid}", {})
     s.setdefault("theme", DEFAULT_THEME)
     n = s.setdefault("notify", {})
-    for k in ("events", "chat", "pet", "notes"):
+    for k in ("events", "chat", "pet", "notes", "mood"):
         n.setdefault(k, True)
     return s
 
@@ -252,8 +253,7 @@ async def h_bootstrap(request: web.Request) -> web.Response:
         if pet.get("status") == "alive":
             visit = P.visit(pet, uid, (ADMIN_ID, PARTNER_ID))
         pet_state = P.public_state(pet, uid)
-    if visit and visit["grown"]:
-        await stage_announce(request.app, pet, visit["grown"])
+    await after_visit(request.app, pet, visit)
     partner = partner_of(uid)
     return ok(
         me=person(store, uid),
@@ -268,6 +268,8 @@ async def h_bootstrap(request: web.Request) -> web.Response:
         stages=[s[1] for s in P.STAGES],
         stage_xp=[s[0] for s in P.STAGES],
         unread=unread_count(store, uid),
+        moods=moods_view(store),
+        emotions=EMOTIONS,
         server_time=time.time(),
     )
 
@@ -411,8 +413,8 @@ async def h_chat_send(request: web.Request) -> web.Response:
     await mark_read(request.app["store"], uid, msg["id"])
     # уведомление в бота, если второй сейчас не в приложении
     partner = partner_of(uid)
-    if partner and time.time() - presence.get(partner, 0) > 70 \
-            and time.time() - last_chat_ping.get(partner, 0) > 300:
+    if partner and time.time() - presence.get(partner, 0) > 25 \
+            and time.time() - last_chat_ping.get(partner, 0) > 8:
         last_chat_ping[partner] = time.time()
         preview = html.escape(text[:120]) + ("…" if len(text) > 120 else "")
         await notify(request.app, partner, f"💬 <b>{short_name(uid)}</b> пишет в приложении:\n«{preview}»",
@@ -465,6 +467,22 @@ async def h_chat_read(request: web.Request) -> web.Response:
 
 
 # ---------- питомец ----------
+async def after_visit(app: web.Application, pet: dict, visit: dict | None) -> None:
+    if not visit:
+        return
+    if visit.get("restored"):
+        left = P.restores_left(pet)
+        name = pet.get("name") or "Малыш"
+        await chat_push(app, {"uid": 0, "type": "system",
+                              "text": f"Огонёк спасён! Использовано восстановлений: {visit['restored']}. "
+                                      f"Осталось в этом месяце: {left} из {P.RESTORES_PER_MONTH}"})
+        for u in ALLOWED:
+            await notify(app, u, f"🔥 Огонёк {html.escape(name)} чуть не погас, но мы его спасли восстановлением. "
+                                 f"Осталось в этом месяце: {left} из {P.RESTORES_PER_MONTH}", kind="pet")
+    if visit.get("grown"):
+        await stage_announce(app, pet, visit["grown"])
+
+
 async def stage_announce(app: web.Application, pet: dict, grown: list[int]) -> None:
     name = pet.get("name") or "Наш малыш"
     for s in grown:
@@ -478,14 +496,13 @@ async def stage_announce(app: web.Application, pet: dict, grown: list[int]) -> N
 async def h_pet(request: web.Request) -> web.Response:
     store: Storage = request.app["store"]
     uid = request["uid"]
-    grown = []
+    visit = None
     async with store.edit("pet", P.new_pet()) as pet:
         if pet.get("status") == "alive":
-            grown = P.visit(pet, uid, (ADMIN_ID, PARTNER_ID))["grown"]
+            visit = P.visit(pet, uid, (ADMIN_ID, PARTNER_ID))
         st = P.public_state(pet, uid)
-    if grown:
-        await stage_announce(request.app, pet, grown)
-    return ok(pet=st)
+    await after_visit(request.app, pet, visit)
+    return ok(pet=st, visit=visit)
 
 
 async def h_pet_pick(request: web.Request) -> web.Response:
@@ -537,10 +554,6 @@ async def h_pet_name(request: web.Request) -> web.Response:
     async with store.edit("pet", P.new_pet()) as pet:
         if pet.get("status") != "alive":
             return json_error(409, "Сначала выберите питомца")
-        left = pet.get("name_changed_at", 0) + P.NAME_COOLDOWN - time.time()
-        if pet.get("name") and left > 0 and uid != ADMIN_ID:
-            days = int(left // 86400) + 1
-            return json_error(429, f"Имя можно менять раз в 14 дней. Осталось дней: {days}")
         old = pet.get("name")
         pet.update({"name": name, "name_changed_at": time.time(), "name_by": uid})
         P.add_history(pet, "name", f"{short_name(uid)} назвал(а) малыша «{name}»" if not old
@@ -649,6 +662,65 @@ async def h_pet_xp(request: web.Request) -> web.Response:
     if grown:
         await stage_announce(request.app, pet, grown)
     return ok(pet=state)
+
+
+# ---------- «Мы сейчас»: настроение ----------
+EMOTIONS = {
+    "happy": ("Счастье", "#F6C860"), "love": ("Любовь", "#F28CA6"), "miss": ("Скучаю", "#B39DEB"),
+    "calm": ("Спокойствие", "#7FCFB0"), "tender": ("Нежность", "#F7B39A"), "inspired": ("Вдохновение", "#8FB6F2"),
+    "tired": ("Усталость", "#9AA3B5"), "sad": ("Грусть", "#6E93D6"), "anxious": ("Тревога", "#F0A35E"),
+    "angry": ("Злость", "#E8676B"),
+}
+last_mood_ping: dict[int, float] = {}
+
+
+def moods_view(store: Storage) -> dict:
+    m = store.get("moods", {})
+    return {str(u): m.get(str(u)) for u in ALLOWED}
+
+
+async def h_mood(request: web.Request) -> web.Response:
+    store: Storage = request.app["store"]
+    uid = request["uid"]
+    d = await body(request)
+    emo = d.get("emotion")
+    if emo == "custom":
+        label = clean_text(d.get("label"), 24)
+        color = str(d.get("color") or "")
+        if not label:
+            return json_error(400, "Как назвать это чувство?")
+        if not (len(color) == 7 and color.startswith("#") and all(c in "0123456789abcdefABCDEF" for c in color[1:])):
+            color = "#C9B3EA"
+    elif emo in EMOTIONS:
+        label, color = EMOTIONS[emo]
+    else:
+        return json_error(400, "Выбери чувство")
+    try:
+        level = max(0, min(100, int(d.get("level", 60))))
+    except (TypeError, ValueError):
+        level = 60
+    note = clean_text(d.get("note"), 120)
+    entry = {"emotion": emo, "label": label, "color": color, "level": level, "note": note, "ts": time.time()}
+    async with store.edit("moods", {}) as moods:
+        prev = moods.get(str(uid)) or {}
+        moods[str(uid)] = entry
+    async with store.edit("mood_history", []) as hist:
+        hist.append({"uid": uid, **entry})
+        del hist[:-200]
+    partner = partner_of(uid)
+    changed = prev.get("label") != label
+    if partner and (changed or time.time() - last_mood_ping.get(uid, 0) > 3600):
+        last_mood_ping[uid] = time.time()
+        extra = f"\n«{html.escape(note)}»" if note else ""
+        await notify(request.app, partner, f"💭 {short_name(uid)} сейчас: <b>{html.escape(label)}</b> — {level}%{extra}",
+                     kind="mood")
+    return ok(moods=moods_view(store))
+
+
+async def h_moods(request: web.Request) -> web.Response:
+    store: Storage = request.app["store"]
+    hist = [h for h in store.get("mood_history", []) if time.time() - h["ts"] < 14 * 86400]
+    return ok(moods=moods_view(store), history=hist[-60:], emotions=EMOTIONS)
 
 
 # ---------- «Важное»: хотелки, анкета, письма, планы ----------
@@ -817,6 +889,38 @@ async def h_notes_patch(request: web.Request) -> web.Response:
     return ok(notes=view)
 
 
+# ---------- «Что нового» после обновления ----------
+# Добавляй сюда запись при каждом заметном обновлении: бот один раз пришлёт её вам обоим.
+# Только про новые возможности, без мелких правок внешнего вида.
+CHANGELOG = [
+    ("2026-11-08", [
+        "💭 Новый раздел «Мы сейчас»: делитесь настроением и видите, что чувствует второй",
+        "🐾 Питомец растёт по дням: новые стадии на 10, 50, 100, 200, 300 и 365 день",
+        "🔥 3 восстановления огонька в месяц — если кто-то пропустил день, огонёк спасётся сам",
+        "🤒 Если кто-то не зашёл, питомцу становится плохо — заходите оба",
+        "🧸 Уход за питомцем прямо в комнате: миска, мячик, ванночка, лежанка",
+        "💬 Уведомления о каждом новом сообщении в чате приложения",
+        "✏️ Имя питомца можно менять когда угодно",
+        "📱 Приложение можно добавить на экран «Домой» (Профиль)",
+    ]),
+]
+
+
+async def announce_changes(bot: Bot, store: Storage, kb_for) -> None:
+    if not WEBAPP_URL or not CHANGELOG:
+        return
+    version, items = CHANGELOG[-1]
+    if store.get("changelog_sent") == version:
+        return
+    text = "✨ <b>Приложение обновлено!</b>\n\nЧто нового:\n" + "\n".join(items)
+    for uid in ALLOWED:
+        try:
+            await bot.send_message(uid, text, reply_markup=kb_for(uid))
+        except TelegramAPIError as e:
+            log.info("changelog %s: %s", uid, e)
+    await store.set("changelog_sent", version)
+
+
 # ---------- напоминания ----------
 DMB_MILESTONES = {365: "Остался ровно год до дембеля!", 300: "До дембеля 300 дней",
                   200: "До дембеля 200 дней", 150: "До дембеля 150 дней", 100: "До дембеля 100 дней — сотка!",
@@ -941,6 +1045,8 @@ def setup(app: web.Application, bot: Bot, store: Storage) -> None:
     r.add_post("/api/pet/gift", h_pet_gift)
     r.add_post("/api/pet/reset", h_pet_reset)
     r.add_post("/api/pet/xp", h_pet_xp)
+    r.add_get("/api/moods", h_moods)
+    r.add_post("/api/mood", h_mood)
     r.add_get("/api/notes", h_notes)
     r.add_post("/api/notes/{kind}", h_notes_post)
     r.add_patch("/api/notes/{kind}/{id}", h_notes_patch)

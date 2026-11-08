@@ -4,6 +4,7 @@ import { $, $$, esc, plural, days, fmtDate, MONTHS, MONTHS_N, sheet, toast, conf
 import { icon } from '../art/icons.js';
 import { coupleHero, journey } from '../art/couple.js';
 import { haptic } from '../tg.js';
+import { moodsCardHTML, bindMoods, destroyMoods } from './moods.js';
 
 const TZ = '+03:00'; // Минск
 const LOVE = [
@@ -143,6 +144,7 @@ export function render(root) {
            <div class="clock"><div><b id="c-h">00</b><span>часов</span></div><div><b id="c-m">00</b><span>минут</span></div><div><b id="c-s">00</b><span>секунд</span></div></div>`}
       <div class="loveis">Любовь — это… <b>${phrase}</b></div>
     </div>
+    ${moodsCardHTML()}
     <div class="card">
       <h2>${icon('heart')} Путь домой<span class="spacer"></span><span class="pct" id="pct"></span></h2>
       <div id="journey"></div>
@@ -190,6 +192,7 @@ export function render(root) {
 
   if (todayEv.length) setTimeout(() => confetti(60), 600);
   bindEvents(root);
+  bindMoods(root);
 }
 
 function bindEvents(root) {
@@ -257,4 +260,5 @@ function addEventSheet() {
 
 export function destroy() {
   clearInterval(timer);
+  destroyMoods();
 }

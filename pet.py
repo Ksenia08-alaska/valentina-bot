@@ -25,24 +25,55 @@ FOOD_NAMES = {
     "apple": "яблоко", "seeds": "семечки", "grapes": "виноград", "salad": "салатик",
 }
 
-# ---------- стадии роста ----------
+# ---------- стадии роста (по дням) ----------
+# Питомец растёт с возрастом. Забота и игры дают опыт, а каждые XP_PER_DAY опыта
+# добавляют ещё один «день роста» — так можно ускорить взросление.
 STAGES = [
     (0, "Новорождённый"),
-    (250, "Кроха"),
-    (900, "Малыш-шалун"),
-    (2200, "Подросток"),
-    (4500, "Юный"),
-    (8000, "Взрослый"),
-    (14000, "Легенда"),
+    (10, "Малыш"),
+    (50, "Шалунишка"),
+    (100, "Подросток"),
+    (200, "Юный"),
+    (300, "Взрослый"),
+    (365, "Легенда"),
 ]
+XP_PER_DAY = 300
+RESTORES_PER_MONTH = 3
 
 
-def stage_of(xp: int) -> int:
+def age_days(pet: dict, now: float | None = None) -> int:
+    born = pet.get("born_at") or time.time()
+    return max(0, int(((now or time.time()) - born) // 86400))
+
+
+def growth_days(pet: dict) -> int:
+    return age_days(pet) + pet.get("xp", 0) // XP_PER_DAY
+
+
+def stage_of_days(days: int) -> int:
     s = 0
     for i, (need, _) in enumerate(STAGES):
-        if xp >= need:
+        if days >= need:
             s = i
     return s
+
+
+def stage_of_pet(pet: dict) -> int:
+    return stage_of_days(growth_days(pet))
+
+
+def check_growth(pet: dict) -> list[int]:
+    """Возвращает новые стадии, до которых питомец дорос с прошлой проверки."""
+    if pet.get("status") != "alive":
+        return []
+    cur = stage_of_pet(pet)
+    seen = pet.get("stage_seen", 0)
+    grown = list(range(seen + 1, cur + 1))
+    for st in grown:
+        add_history(pet, "stage", f"Подрос до стадии «{STAGES[st][1]}»", stage=st)
+    if cur > seen:
+        pet["stage_seen"] = cur
+    return grown
 
 
 # ---------- действия ----------
@@ -104,6 +135,8 @@ def mood(pet: dict, now: float | None = None) -> str:
     st = pet["stats"]
     if now < pet.get("sleep_until", 0):
         return "sleep"
+    if is_sick(pet):
+        return "sick"
     if st["food"] < 25:
         return "hungry"
     if st["clean"] < 25:
@@ -133,13 +166,8 @@ def _daily(pet: dict, uid: int) -> dict:
 
 def add_xp(pet: dict, amount: int) -> list[int]:
     """Добавляет опыт. Возвращает список новых стадий (если питомец подрос)."""
-    before = stage_of(pet.get("xp", 0))
     pet["xp"] = pet.get("xp", 0) + max(0, int(amount))
-    after = stage_of(pet["xp"])
-    grown = list(range(before + 1, after + 1))
-    for s in grown:
-        add_history(pet, "stage", f"Подрос до стадии «{STAGES[s][1]}»", stage=s)
-    return grown
+    return check_growth(pet)
 
 
 def effective_streak(pet: dict) -> tuple[int, bool]:
@@ -154,11 +182,62 @@ def effective_streak(pet: dict) -> tuple[int, bool]:
     return 0, False
 
 
+def _month() -> str:
+    return day_str()[:7]
+
+
+def restores_left(pet: dict) -> int:
+    r = pet.get("restores", {})
+    used = r.get("used", 0) if r.get("month") == _month() else 0
+    return max(0, RESTORES_PER_MONTH - used)
+
+
+def missed_days(pet: dict) -> int:
+    """Сколько дней подряд огонёк не горел (0 — всё в порядке)."""
+    last = pet.get("last_streak_day")
+    if not last or not pet.get("streak"):
+        return 0
+    from datetime import date as _d
+    gap = (_d.fromisoformat(day_str()) - _d.fromisoformat(last)).days
+    return max(0, gap - 1)
+
+
+def try_restore(pet: dict) -> int:
+    """Автоматически спасает огонёк, если пропущено не больше, чем осталось восстановлений.
+    Возвращает, сколько восстановлений потрачено (0 — не нужно или не хватило)."""
+    miss = missed_days(pet)
+    if not miss or miss > restores_left(pet):
+        return 0
+    r = pet.get("restores", {})
+    if r.get("month") != _month():
+        r = {"month": _month(), "used": 0}
+    r["used"] = r.get("used", 0) + miss
+    pet["restores"] = r
+    pet["last_streak_day"] = day_str(time.time() - 86400)
+    add_history(pet, "restore", f"Огонёк спасён восстановлением ({miss} шт.)")
+    return miss
+
+
+def is_sick(pet: dict) -> bool:
+    """Питомцу плохо, если вчера кто-то не зашёл, а сегодня вы ещё не зашли оба."""
+    if pet.get("status") != "alive" or age_days(pet) < 1:
+        return False
+    visits = pet.get("visits", {})
+    yesterday = visits.get(day_str(time.time() - 86400), [])
+    today = visits.get(day_str(), [])
+    both = pet.get("_both") or []
+    if not both:
+        return False
+    return not all(u in yesterday for u in both) and not all(u in today for u in both)
+
+
 def visit(pet: dict, uid: int, both: tuple[int, int]) -> dict:
     """Отмечает визит. Огонёк растёт, когда за день зашли оба."""
-    res = {"xp": 0, "grown": [], "streak_up": False}
+    res = {"xp": 0, "grown": [], "streak_up": False, "restored": 0}
     if pet.get("status") != "alive":
         return res
+    pet["_both"] = [u for u in both if u]
+    res["restored"] = try_restore(pet)
     today = day_str()
     visits = pet.setdefault("visits", {})
     for k in list(visits):
@@ -178,7 +257,8 @@ def visit(pet: dict, uid: int, both: tuple[int, int]) -> dict:
         if pet["streak"] in (3, 7, 14, 30, 50, 100, 150, 200, 300, 365, 500):
             add_history(pet, "streak", f"Огонёк горит уже {pet['streak']} дней подряд", streak=pet["streak"])
     if res["xp"]:
-        res["grown"] = add_xp(pet, res["xp"])
+        add_xp(pet, res["xp"])
+    res["grown"] = check_growth(pet)
     return res
 
 
@@ -290,7 +370,8 @@ def public_state(pet: dict, uid: int) -> dict:
     tick(pet, now)
     streak, at_risk = effective_streak(pet)
     xp = pet.get("xp", 0)
-    s = stage_of(xp)
+    gd = growth_days(pet)
+    s = stage_of_days(gd)
     nxt = STAGES[s + 1][0] if s + 1 < len(STAGES) else None
     daily = _daily(pet, uid)
     today_visits = pet.get("visits", {}).get(day_str(), [])
@@ -298,13 +379,19 @@ def public_state(pet: dict, uid: int) -> dict:
         "species": pet["species"],
         "name": pet.get("name"),
         "name_changed_at": pet.get("name_changed_at", 0),
-        "name_next_change": pet.get("name_changed_at", 0) + NAME_COOLDOWN if pet.get("name") else 0,
+        "name_next_change": 0,
         "born_at": pet.get("born_at"),
         "xp": xp,
+        "age_days": age_days(pet),
+        "growth_days": gd,
+        "xp_per_day": XP_PER_DAY,
         "stage": s,
         "stage_name": STAGES[s][1],
         "stage_from": STAGES[s][0],
         "stage_to": nxt,
+        "restores_left": restores_left(pet),
+        "missed_days": missed_days(pet),
+        "sick": is_sick(pet),
         "stats": {k: round(v, 1) for k, v in pet["stats"].items()},
         "mood": mood(pet, now),
         "sleep_until": pet.get("sleep_until", 0),
@@ -330,7 +417,8 @@ def adopt(pet: dict, species: str) -> None:
         "born_at": now, "xp": 0, "stats": {"food": 80, "joy": 85, "energy": 90, "clean": 90},
         "stats_ts": now, "sleep_until": 0, "streak": 0, "streak_best": 0,
         "last_streak_day": None, "visits": {}, "daily": {}, "cooldowns": {},
-        "counters": {}, "records": {}, "fav_found": False,
+        "counters": {}, "records": {}, "fav_found": False, "stage_seen": 0,
+        "restores": {"month": _month(), "used": 0},
     })
     pet["history"] = []
     add_history(pet, "adopted", f"У нас появился {SPECIES[species]['name'].lower()}!", stage=0)

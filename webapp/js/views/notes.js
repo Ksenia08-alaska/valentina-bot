@@ -51,7 +51,7 @@ function counts() {
   const inbox = N.letters.filter((l) => l.to === me);
   return {
     wishes: `${N.wishes.filter((w) => !w.done).length} в списке`,
-    facts: `заполнено ${Object.keys(N.facts[me] || {}).length} из ${N.fact_fields.length}`,
+    facts: `${Object.keys(N.facts[me] || {}).length} из ${N.fact_fields.length}`,
     letters: inbox.length ? `${inbox.length} для тебя` : 'пока нет',
     plans: `${N.plans.filter((p) => p.done).length} из ${N.plans.length} сбылось`,
   };
