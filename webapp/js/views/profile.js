@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { $, $$, esc, toast, avatarHTML, fmtAgo, fmtDate, days } from '../ui.js';
 import { icon, flameSVG } from '../art/icons.js';
 import { petSVG } from '../art/pets.js';
+import { coinSVG } from '../art/play.js';
 import { haptic, tg } from '../tg.js';
 
 let root = null, offs = [];
@@ -27,7 +28,7 @@ const NOTIFY = [
   ['chat', 'Сообщения из чата', 'Если ты не в приложении', 'chat', 'c2'],
   ['pet', 'Питомец', 'Голод, огонёк, рост и выбор', 'paw', 'c6'],
   ['notes', 'Письма и хотелки', 'Когда тебе пишут что-то новое', 'letter', 'c7'],
-  ['mood', 'Настроение', 'Когда второй делится, что чувствует', 'heart', 'c4'],
+  ['games', 'Игры и моментики', 'Вызовы, «твой ход», купоны', 'game', 'c4'],
 ];
 
 export function render(r) {
@@ -69,13 +70,22 @@ function draw() {
       ${NOTIFY.map(([k, t, d, ic, c]) => `<div class="toggle-row"><span class="ic ${c}">${icon(ic)}</span><div class="grow"><b>${t}</b><span>${d}</span></div><button class="sw ${S.settings.notify[k] ? 'on' : ''}" data-n="${k}" aria-label="${t}"></button></div>`).join('')}
     </div>
     ${isAdmin() ? `<div class="card"><h2>${icon('shield')} Возможности админа</h2>
-      <p class="muted tiny" style="margin:0 0 6px">Ты можешь: удалять любые даты, сообщения и записи, менять имя питомца без ограничения в 14 дней, начинать выбор питомца заново и дарить ему опыт (в «Истории» питомца).</p></div>` : ''}
+      <p class="muted tiny" style="margin:0 0 6px">Ты можешь: удалять любые даты, сообщения и записи, начинать выбор питомца заново и дарить ему опыт (в «Истории» питомца), начислять и списывать моментики.</p></div>
+    <div class="card" id="adm-coins"><h2>${coinSVG(22)} Моментики</h2>
+      <div class="seg" id="ac-who">${[me, pa].filter(Boolean).map((x, i) => `<button data-u="${x.id}" class="${i === (pa ? 1 : 0) ? 'on' : ''}">${esc(x.id === me.id ? 'Себе' : x.name)}</button>`).join('')}</div>
+      <div class="row" style="margin-top:10px"><div class="field grow" style="margin:0"><input id="ac-amount" type="number" inputmode="numeric" min="1" max="100000" placeholder="Сколько"></div></div>
+      <div class="chips-quick" id="ac-quick">${[10, 25, 50, 100, 500].map((n) => `<button data-q="${n}">${n}</button>`).join('')}</div>
+      <div class="field"><input id="ac-reason" maxlength="80" placeholder="За что (необязательно)"></div>
+      <div class="toggle-row" style="padding:2px 0 10px"><div class="grow"><b>Сообщить в боте</b><span>Придёт короткое уведомление</span></div><button class="sw on" id="ac-notify" aria-label="Сообщить"></button></div>
+      <div class="row"><button class="btn plain grow" data-sign="-1">${icon('close')} Списать</button><button class="btn grow" data-sign="1">${icon('plus')} Начислить</button></div>
+      <p class="muted tiny" id="ac-bal" style="margin:10px 0 0;text-align:center"></p></div>` : ''}
     <div class="foot">сделано с любовью · ${fmtDate(new Date())}</div>`;
   $$('[data-th]', root).forEach((b) => { b.onclick = () => setTheme(b.dataset.th); });
   $$('[data-n]', root).forEach((b) => { b.onclick = () => toggleNotify(b.dataset.n, b); });
   const tc = $('#to-chat', root);
   if (tc) tc.onclick = () => emit('go', { tab: 'chat' });
   setupHome();
+  if (isAdmin()) setupCoins();
 }
 
 async function setTheme(t) {
@@ -108,4 +118,33 @@ function setupHome() {
   } catch (e) { /* */ }
   btn.onclick = () => { haptic.tap(); try { tg.addToHomeScreen(); } catch (e) { toast('Не получилось. Попробуй через меню «⋯»'); } };
   tg.onEvent?.('homeScreenAdded', () => { btn.disabled = true; btn.innerHTML = `${icon('check')} Уже на экране`; toast('Готово! Иконка на экране «Домой»'); });
+}
+
+async function setupCoins() {
+  const box = $('#adm-coins', root);
+  if (!box) return;
+  let who = +($('#ac-who .on', box)?.dataset.u || S.me.id);
+  const showBal = (b) => {
+    if (!b) return;
+    $('#ac-bal', box).innerHTML = `Баланс: ${esc(S.me.name)} — <b>${b.me}</b>${S.partner ? `, ${esc(S.partner.name)} — <b>${b.opp}</b>` : ''}`;
+  };
+  try { showBal((await api('/games/live')).balance); } catch (e) { /* */ }
+  $$('#ac-who button', box).forEach((b) => { b.onclick = () => { who = +b.dataset.u; $$('#ac-who button', box).forEach((x) => x.classList.toggle('on', x === b)); haptic.sel(); }; });
+  $$('#ac-quick button', box).forEach((b) => { b.onclick = () => { $('#ac-amount', box).value = b.dataset.q; haptic.sel(); }; });
+  $('#ac-notify', box).onclick = (e) => e.currentTarget.classList.toggle('on');
+  $$('[data-sign]', box).forEach((b) => {
+    b.onclick = async () => {
+      const n = Math.abs(parseInt($('#ac-amount', box).value, 10) || 0);
+      if (!n) { toast('Укажи сколько', 'err'); return; }
+      b.disabled = true;
+      try {
+        const d = await api('/coins/admin', { method: 'POST', body: { uid: who, amount: n * +b.dataset.sign, reason: $('#ac-reason', box).value, notify: $('#ac-notify', box).classList.contains('on') } });
+        haptic.ok();
+        toast(+b.dataset.sign > 0 ? `Начислено ${n}` : `Списано ${n}`);
+        $('#ac-amount', box).value = ''; $('#ac-reason', box).value = '';
+        showBal(d.balance);
+      } catch (e) { toast(e.message, 'err'); }
+      b.disabled = false;
+    };
+  });
 }

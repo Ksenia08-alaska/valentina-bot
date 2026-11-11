@@ -115,7 +115,7 @@ def settings_of(store: Storage, uid: int) -> dict:
     s = store.get(f"settings:{uid}", {})
     s.setdefault("theme", DEFAULT_THEME)
     n = s.setdefault("notify", {})
-    for k in ("events", "chat", "pet", "notes", "mood"):
+    for k in ("events", "chat", "pet", "notes", "mood", "games"):
         n.setdefault(k, True)
     return s
 
@@ -254,8 +254,12 @@ async def h_bootstrap(request: web.Request) -> web.Response:
             visit = P.visit(pet, uid, (ADMIN_ID, PARTNER_ID))
         pet_state = P.public_state(pet, uid)
     await after_visit(request.app, pet, visit)
+    import games_api as G
+    login_bonus = await G.earn(request.app, uid, "login")
+    play = G.norm(store.get("play", G.default()))
     partner = partner_of(uid)
     return ok(
+        coins={"me": G.bal(play, uid), "opp": G.bal(play, partner), "login_bonus": login_bonus},
         me=person(store, uid),
         partner=person(store, partner) if partner else None,
         settings=settings_of(store, uid),
@@ -412,6 +416,8 @@ async def h_chat_send(request: web.Request) -> web.Response:
     msg = await chat_push(request.app, {"uid": uid, "type": "text", "text": text,
                                         "reply_to": int(reply_to) if str(reply_to or "").isdigit() else None})
     await mark_read(request.app["store"], uid, msg["id"])
+    import games_api as G
+    await G.earn(request.app, uid, "chat")
     # уведомление в бота, если второй сейчас не в приложении
     partner = partner_of(uid)
     if partner and time.time() - presence.get(partner, 0) > 25 \
@@ -578,6 +584,9 @@ async def h_pet_action(request: web.Request) -> web.Response:
         state = P.public_state(pet, uid)
     if res.get("grown"):
         await stage_announce(request.app, pet, res["grown"])
+    if res.get("ok", True) and not res.get("error"):
+        import games_api as G
+        res["coins"] = await G.earn(request.app, uid, "care")
     return ok(result=res, pet=state)
 
 
@@ -590,6 +599,9 @@ async def h_pet_game(request: web.Request) -> web.Response:
         state = P.public_state(pet, uid)
     if res.get("grown"):
         await stage_announce(request.app, pet, res["grown"])
+    if res.get("xp"):
+        import games_api as G
+        res["coins"] = await G.earn(request.app, uid, "game")
     return ok(result=res, pet=state)
 
 
@@ -681,7 +693,6 @@ EMOTION_GROUPS = [
     ("Непростые", ["tired", "sad", "anxious", "angry"]),
     ("Смешные", ["tease", "poop", "starving", "sleepy", "cuddle", "lazy", "pouty", "cringe"]),
 ]
-last_mood_ping: dict[int, float] = {}
 MAX_MOODS_PER_DAY = 8
 
 
@@ -693,6 +704,14 @@ def moods_today(store: Storage, uid: int) -> list:
 
 def moods_view(store: Storage) -> dict:
     return {str(u): moods_today(store, u) for u in ALLOWED}
+
+
+def split_levels(n: int) -> list[int]:
+    """Проценты поровну: 3 чувства → 34/33/33, сумма всегда 100."""
+    if n <= 0:
+        return []
+    base, extra = divmod(100, n)
+    return [base + (1 if i < extra else 0) for i in range(n)]
 
 
 def parse_mood(d: dict) -> dict | str:
@@ -708,65 +727,48 @@ def parse_mood(d: dict) -> dict | str:
         label, color = EMOTIONS[emo]
     else:
         return "Выбери чувство"
-    try:
-        level = max(0, min(100, int(d.get("level", 60))))
-    except (TypeError, ValueError):
-        level = 60
-    return {"emotion": emo, "label": label, "color": color, "level": level,
-            "note": clean_text(d.get("note"), 120), "ts": time.time()}
+    return {"emotion": emo, "label": label, "color": color, "ts": time.time()}
 
 
-async def h_mood(request: web.Request) -> web.Response:
-    """Добавить чувство (или обновить такое же) в сегодняшний список."""
+async def h_moods_save(request: web.Request) -> web.Response:
+    """Сохранить весь список чувств за сегодня. Проценты считаются сами — поровну.
+    Партнёру ничего не присылаем: всё видно в приложении."""
     store: Storage = request.app["store"]
     uid = request["uid"]
-    entry = parse_mood(await body(request))
-    if isinstance(entry, str):
-        return json_error(400, entry)
+    d = await body(request)
+    raw = d.get("items") if isinstance(d.get("items"), list) else []
+    items, seen = [], set()
+    for r in raw[:MAX_MOODS_PER_DAY * 2]:
+        e = parse_mood(r if isinstance(r, dict) else {})
+        if isinstance(e, str):
+            continue
+        key = e["label"].lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(e)
+    if len(items) > MAX_MOODS_PER_DAY:
+        return json_error(400, f"Можно выбрать до {MAX_MOODS_PER_DAY} чувств")
     today = day_str()
     async with store.edit("moods_day", {}) as md:
         cur = md.get(str(uid)) or {}
-        items = cur.get("items", []) if cur.get("day") == today else []
-        same = next((i for i in items if i["label"].lower() == entry["label"].lower()), None)
-        # на все чувства за день — общие 100%
-        others = sum(i.get("level", 0) for i in items if i is not same)
-        free = max(0, 100 - others)
-        if entry["level"] > free:
-            if free <= 0:
-                return json_error(400, "Все 100% уже заняты — уменьши или удали другое чувство")
-            entry["level"] = free
-        if same:
-            same.update(entry)
-            is_new = False
-        else:
-            if len(items) >= MAX_MOODS_PER_DAY:
-                return json_error(400, f"На сегодня уже {MAX_MOODS_PER_DAY} чувств — удали одно, чтобы добавить новое")
-            entry["id"] = uuid.uuid4().hex[:8]
-            items.append(entry)
-            is_new = True
+        old = {i["label"].lower(): i for i in (cur.get("items", []) if cur.get("day") == today else [])}
+        for e, lvl in zip(items, split_levels(len(items))):
+            prev = old.get(e["label"].lower())
+            e["id"] = prev["id"] if prev else uuid.uuid4().hex[:8]
+            e["ts"] = prev["ts"] if prev else e["ts"]
+            e["level"] = lvl
         md[str(uid)] = {"day": today, "items": items}
-    async with store.edit("mood_history", []) as hist:
-        hist.append({"uid": uid, **entry})
-        del hist[:-300]
-    partner = partner_of(uid)
-    if partner and (is_new or time.time() - last_mood_ping.get(uid, 0) > 3600):
-        last_mood_ping[uid] = time.time()
-        extra = f"\n«{html.escape(entry['note'])}»" if entry["note"] else ""
-        await notify(request.app, partner,
-                     f"💭 {short_name(uid)} сейчас: <b>{html.escape(entry['label'])}</b> — {entry['level']}%{extra}",
-                     kind="mood")
-    return ok(moods=moods_view(store))
-
-
-async def h_mood_del(request: web.Request) -> web.Response:
-    store: Storage = request.app["store"]
-    uid = request["uid"]
-    mid = request.match_info["id"]
-    async with store.edit("moods_day", {}) as md:
-        cur = md.get(str(uid)) or {}
-        if cur.get("day") == day_str():
-            cur["items"] = [i for i in cur.get("items", []) if i.get("id") != mid]
-            md[str(uid)] = cur
+    new_ones = [e for e in items if e["label"].lower() not in old]
+    if new_ones:
+        async with store.edit("mood_history", []) as hist:
+            for e in new_ones:
+                hist.append({"uid": uid, "emotion": e["emotion"], "label": e["label"], "color": e["color"],
+                             "level": e["level"], "ts": time.time()})
+            del hist[:-300]
+    if items:
+        import games_api as G
+        await G.earn(request.app, uid, "mood")
     return ok(moods=moods_view(store))
 
 
@@ -990,6 +992,14 @@ CHANGELOG = [
         "💭 «Мы сейчас»: можно добавить несколько чувств за день и удалить любое — в 00:00 всё обнуляется",
         "📝 Админ может добавлять и удалять общие пункты анкет",
     ]),
+    ("2026-11-11", [
+        "🎮 Новая вкладка «Игры»",
+        "✨ Моментики — наша валюта: копятся за вход, чат, заботу о питомце и мини-игры",
+        "✊ «Камень, ножницы, бумага» на желание или на моментики — результат виден, когда выбрали оба",
+        "🃏 «Дурак» на двоих: подкидной или переводной, 36 или 24 карты, можно с шулерами",
+        "🎟 Купоны: выставляй свои за моментики и покупай у второго",
+        "💭 «Мы сейчас»: отмечай сразу несколько чувств — проценты считаются сами",
+    ]),
 ]
 
 
@@ -1139,13 +1149,14 @@ def setup(app: web.Application, bot: Bot, store: Storage) -> None:
     r.add_post("/api/pet/reset", h_pet_reset)
     r.add_post("/api/pet/xp", h_pet_xp)
     r.add_get("/api/moods", h_moods)
-    r.add_post("/api/mood", h_mood)
-    r.add_delete("/api/mood/{id}", h_mood_del)
+    r.add_post("/api/moods/today", h_moods_save)
     r.add_get("/api/notes", h_notes)
     r.add_post("/api/notes/fields", h_fields)
     r.add_delete("/api/notes/fields/{key}", h_fields)
     r.add_post("/api/notes/{kind}", h_notes_post)
     r.add_patch("/api/notes/{kind}/{id}", h_notes_patch)
+    import games_api as G
+    G.setup(app)
     if WEBAPP_DIR.exists():
         r.add_get("/app", h_app_redirect)
         r.add_get("/app/", h_app_index)

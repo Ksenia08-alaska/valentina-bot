@@ -32,12 +32,11 @@ function personHTML(person) {
   if (!person) return '';
   const items = itemsOf(person.id);
   const mine = person.id === S.me.id;
-  const last = items.length ? items.reduce((a, b) => (b.ts > a.ts ? b : a)) : null;
   return `<button class="mood-person" data-mood="${person.id}">
     ${portrait(whoOf(person.id), items, 112)}
     <b>${esc(mine ? 'Я' : person.name)}</b>
-    ${items.length ? `${chips(items)}${last && last.note ? `<span class="mood-note">«${esc(last.note)}»</span>` : ''}<span class="mood-time">обновлено ${ago(last.ts)}</span>`
-      : `<span class="mood-time">${mine ? 'Нажми, чтобы рассказать, что чувствуешь' : 'сегодня пока не делился(ась)'}</span>`}
+    ${items.length ? chips(items)
+      : `<span class="mood-time">${mine ? 'Нажми, чтобы отметить, что чувствуешь' : 'сегодня пока не отмечал(а)'}</span>`}
   </button>`;
 }
 
@@ -45,7 +44,7 @@ export function moodsCardHTML() {
   return `<div class="card moods-card" id="moods-card">
     <h2>${icon('heart')} Мы сейчас<span class="spacer"></span><span class="chip gray" id="mood-edit">${icon('plus')}чувство</span></h2>
     <div class="moods-row">${personHTML(S.me)}${personHTML(S.partner)}</div>
-    <p class="muted tiny" style="margin:10px 2px 0;text-align:center">На день — 100%, которые делят между собой твои чувства. В 00:00 всё начинается с чистого листа</p>
+    <p class="muted tiny" style="margin:10px 2px 0;text-align:center">Проценты делятся между чувствами поровну. В 00:00 всё начинается с чистого листа</p>
   </div>`;
 }
 
@@ -73,113 +72,84 @@ function refresh(root) {
   bindMoods(root);
 }
 
+export function splitLevels(n) {
+  if (!n) return [];
+  const base = Math.floor(100 / n), extra = 100 - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
 function editSheet(root) {
   const E = S.emotions || {};
-  const groups = (S.emotionGroups && S.emotionGroups.length) ? S.emotionGroups : [['Чувства', Object.keys(E)]];
-  const st = { emotion: null, level: 30, label: '', color: PALETTE[0], open: false, group: null };
-  const used = () => itemsOf(S.me.id).reduce((t, m) => t + m.level, 0);
-  const free = () => {
-    const sameLabel = st.emotion === 'custom' ? st.label.trim().toLowerCase() : (E[st.emotion] ? E[st.emotion][0].toLowerCase() : '');
-    const same = itemsOf(S.me.id).find((m) => m.label.toLowerCase() === sameLabel);
-    return Math.max(0, 100 - used() + (same ? same.level : 0));
-  };
-  const preview = () => {
-    const e = st.emotion === 'custom' ? { label: st.label || 'Своё', color: st.color } : { label: E[st.emotion][0], color: E[st.emotion][1] };
-    return { emotion: st.emotion, label: e.label, color: e.color, level: st.level };
+  const MAX = 8;
+  // выбранное: ключ эмоции или {label,color} для своего
+  const sel = [];
+  const customs = [];
+  itemsOf(S.me.id).forEach((m) => {
+    if (m.emotion === 'custom') { const c = { label: m.label, color: m.color }; customs.push(c); sel.push(c); } else if (E[m.emotion]) sel.push(m.emotion);
+  });
+  let color = PALETTE[0];
+  const asItem = (x) => (typeof x === 'string' ? { emotion: x, label: E[x][0], color: E[x][1] } : { emotion: 'custom', label: x.label, color: x.color });
+  const has = (x) => sel.includes(x);
+  const toggle = (x) => {
+    const i = sel.indexOf(x);
+    if (i >= 0) sel.splice(i, 1);
+    else if (sel.length >= MAX) { toast(`Можно выбрать до ${MAX} чувств`, 'err'); return; } else sel.push(x);
+    haptic.sel();
   };
   sheet({
-    title: 'Мои чувства сегодня',
-    html: `<div class="budget" id="budget"></div>
-      <div id="today-list"></div>
-      <button class="btn ghost block" id="open-add">${icon('plus')} Добавить чувство</button>
-      <div id="adder" class="hidden">
-        <div class="emo-groups" id="groups">${groups.map(([g, keys], gi) => `
-          <div class="egroup" data-g="${gi}">
-            <button class="egroup-head" data-gh="${gi}"><b>${esc(g)}</b><span>${keys.length}</span>${icon('back')}</button>
-            <div class="emo-grid">${keys.filter((k) => E[k]).map((k) => `<button data-e="${k}" style="--c:${E[k][1]}"><i></i>${esc(E[k][0])}</button>`).join('')}</div>
-          </div>`).join('')}
-          <div class="egroup" data-g="c"><button class="egroup-head" data-gh="c"><b>Своё чувство</b><span>+</span>${icon('back')}</button>
-            <div><div class="field"><input id="c-label" maxlength="24" placeholder="Как назвать чувство?"></div>
-              <div class="colors" id="c-col">${PALETTE.map((c) => `<button data-c="${c}" style="background:${c}" class="${c === st.color ? 'on' : ''}"></button>`).join('')}</div></div></div>
-        </div>
-        <div id="setup" class="hidden">
-          <div class="mood-preview" id="mp"></div>
-          <label class="lbl">Сколько из оставшихся процентов: <b id="lv"></b></label>
-          <input type="range" min="5" max="100" step="5" id="level" class="range">
-          <div class="field" style="margin-top:12px"><input id="note" maxlength="120" placeholder="Пару слов (необязательно)"></div>
-          <button class="btn block" id="m-save">${icon('check')} Добавить</button>
-        </div>
+    title: 'Что я чувствую сегодня',
+    html: `<div class="mood-live" id="live"></div>
+      <div class="emo-grid all" id="grid"></div>
+      <div class="custom-add">
+        <div class="field"><input id="c-label" maxlength="24" placeholder="Своё чувство…"></div>
+        <button class="btn sq" id="c-add" aria-label="Добавить своё">${icon('plus')}</button>
       </div>
-      <p class="muted tiny" style="text-align:center;margin:12px 0 0">На весь день — 100%, чувства делят их между собой. В 00:00 всё обнуляется. ${esc(S.partner?.name || '')} получит уведомление</p>`,
-    onMount(sh) {
-      const drawBudget = () => {
-        const u = used();
-        $('#budget', sh).innerHTML = `<div class="bline">${itemsOf(S.me.id).map((m) => `<i style="width:${m.level}%;background:${m.color}"></i>`).join('')}</div><span>Занято ${u}% из 100%${u >= 100 ? ' — удали или уменьши чувство, чтобы добавить новое' : ''}</span>`;
+      <div class="colors" id="c-col">${PALETTE.map((c) => `<button data-c="${c}" style="background:${c}" class="${c === color ? 'on' : ''}" aria-label="Цвет"></button>`).join('')}</div>
+      <button class="btn block" id="m-save">${icon('check')} Сохранить</button>
+      <p class="muted tiny" style="text-align:center;margin:10px 0 0">Отметь всё, что чувствуешь — проценты разделятся поровну сами. В 00:00 всё обнулится</p>`,
+    onMount(sh, close) {
+      const draw = () => {
+        const items = sel.map(asItem);
+        const lv = splitLevels(items.length);
+        const shown = items.map((m, i) => ({ ...m, level: lv[i] }));
+        $('#live', sh).innerHTML = `${portrait(S.me.role === 'admin' ? 'girl' : 'boy', shown, 104)}
+          <div class="grow">${shown.length ? `<div class="bline">${shown.map((m) => `<i style="width:${m.level}%;background:${m.color}"></i>`).join('')}</div>
+            <div class="mood-chips left">${shown.map((m) => `<span class="mchip" style="--c:${m.color}"><i></i>${esc(m.label)} ${m.level}%</span>`).join('')}</div>`
+            : '<span class="muted">Выбери одно или несколько чувств</span>'}</div>`;
+        const keys = Object.keys(E);
+        $('#grid', sh).innerHTML = keys.map((k) => `<button data-e="${k}" class="${has(k) ? 'on' : ''}" style="--c:${E[k][1]}"><i></i>${esc(E[k][0])}</button>`).join('')
+          + customs.map((c, i) => `<button data-cu="${i}" class="custom ${has(c) ? 'on' : ''}" style="--c:${c.color}"><i></i>${esc(c.label)}</button>`).join('');
+        $$('[data-e]', sh).forEach((b) => { b.onclick = () => { toggle(b.dataset.e); draw(); }; });
+        $$('[data-cu]', sh).forEach((b) => { b.onclick = () => { toggle(customs[+b.dataset.cu]); draw(); }; });
       };
-      const drawToday = () => {
-        const items = itemsOf(S.me.id);
-        $('#today-list', sh).innerHTML = items.length
-          ? `<div class="today-moods">${items.map((m) => `<div class="tm" style="--c:${m.color}"><i></i><div class="grow"><b>${esc(m.label)} · ${m.level}%</b>${m.note ? `<span>«${esc(m.note)}»</span>` : ''}</div><button data-del="${m.id}" aria-label="Удалить">${icon('close')}</button></div>`).join('')}</div>`
-          : '<div class="empty" style="padding:8px 0 14px">Сегодня пока ничего — добавь первое чувство</div>';
-        $$('[data-del]', sh).forEach((b) => {
-          b.onclick = async () => {
-            try { const d = await api('/mood/' + b.dataset.del, { method: 'DELETE' }); S.moods = d.moods; haptic.tap(); drawAll(); refresh(root); } catch (e) { toast(e.message, 'err'); }
-          };
-        });
+      $$('#c-col button', sh).forEach((b) => { b.onclick = () => { color = b.dataset.c; $$('#c-col button', sh).forEach((x) => x.classList.toggle('on', x === b)); haptic.sel(); }; });
+      const addCustom = () => {
+        const inp = $('#c-label', sh);
+        const label = inp.value.trim();
+        if (!label) { inp.focus(); return; }
+        const low = label.toLowerCase();
+        const builtin = Object.keys(E).find((k) => E[k][0].toLowerCase() === low);
+        if (builtin) { if (!has(builtin)) toggle(builtin); } else {
+          let c = customs.find((x) => x.label.toLowerCase() === low);
+          if (!c) { c = { label, color }; customs.push(c); }
+          if (!has(c)) toggle(c);
+        }
+        inp.value = '';
+        draw();
       };
-      const drawSetup = () => {
-        const on = !!st.emotion && (st.emotion !== 'custom' || st.label.trim());
-        $('#setup', sh).classList.toggle('hidden', !on);
-        $$('#groups [data-e]', sh).forEach((b) => b.classList.toggle('on', b.dataset.e === st.emotion));
-        if (!on) return;
-        const fr = free();
-        const lv = $('#level', sh);
-        lv.max = Math.max(5, fr);
-        lv.disabled = fr <= 0;
-        st.level = Math.min(st.level, fr) || Math.min(30, fr);
-        lv.value = st.level;
-        const p = preview();
-        $('#mp', sh).innerHTML = `${portrait(S.me.role === 'admin' ? 'girl' : 'boy', p, 110)}<b style="color:${p.color}">${esc(p.label)}</b>`;
-        lv.style.setProperty('--c', p.color);
-        lv.style.setProperty('--v', (fr ? (st.level - 5) / Math.max(1, fr - 5) * 100 : 0) + '%');
-        $('#lv', sh).textContent = fr > 0 ? `${st.level}% (свободно ${fr}%)` : 'свободных процентов нет';
-        $('#m-save', sh).disabled = fr <= 0;
-      };
-      const drawAll = () => { drawBudget(); drawToday(); drawSetup(); };
-      $('#open-add', sh).onclick = () => {
-        st.open = !st.open;
-        $('#adder', sh).classList.toggle('hidden', !st.open);
-        $('#open-add', sh).classList.toggle('hidden', st.open);
-        haptic.tap();
-      };
-      $$('[data-gh]', sh).forEach((h) => {
-        h.onclick = () => {
-          const g = h.closest('.egroup');
-          const was = g.classList.contains('open');
-          $$('.egroup', sh).forEach((x) => x.classList.remove('open'));
-          if (!was) g.classList.add('open');
-          if (h.dataset.gh === 'c') { st.emotion = 'custom'; setTimeout(() => $('#c-label', sh).focus(), 200); }
-          haptic.sel(); drawSetup();
-        };
-      });
-      $$('#groups [data-e]', sh).forEach((b) => { b.onclick = () => { st.emotion = b.dataset.e; haptic.sel(); drawSetup(); }; });
-      $$('#c-col button', sh).forEach((b) => { b.onclick = () => { st.color = b.dataset.c; $$('#c-col button', sh).forEach((x) => x.classList.toggle('on', x === b)); drawSetup(); }; });
-      $('#c-label', sh).oninput = (e) => { st.label = e.target.value; st.emotion = 'custom'; drawSetup(); };
-      $('#level', sh).oninput = (e) => { st.level = +e.target.value; drawSetup(); };
+      $('#c-add', sh).onclick = addCustom;
+      $('#c-label', sh).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addCustom(); } };
       $('#m-save', sh).onclick = async () => {
-        if (st.emotion === 'custom' && !st.label.trim()) { toast('Напиши, как назвать чувство', 'err'); return; }
+        const btn = $('#m-save', sh);
+        btn.disabled = true;
         try {
-          const d = await api('/mood', { method: 'POST', body: { emotion: st.emotion, level: st.level, note: $('#note', sh).value, label: st.label, color: st.color } });
+          const d = await api('/moods/today', { method: 'POST', body: { items: sel.map(asItem) } });
           S.moods = d.moods;
-          haptic.ok(); refresh(root);
-          st.emotion = null; st.label = ''; $('#note', sh).value = ''; $('#c-label', sh).value = '';
-          $$('.egroup', sh).forEach((x) => x.classList.remove('open'));
-          st.open = false; $('#adder', sh).classList.add('hidden'); $('#open-add', sh).classList.remove('hidden');
-          drawAll();
-          toast('Добавлено');
-        } catch (e) { toast(e.message, 'err'); }
+          haptic.ok(); refresh(root); close();
+          toast(sel.length ? 'Сохранено' : 'Сегодня без отметок');
+        } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
       };
-      drawAll();
+      draw();
     },
   });
 }
@@ -192,7 +162,7 @@ async function historySheet(uid) {
   sheet({
     title: `${esc(p?.name || '')} сейчас`,
     html: `${today.length ? `<div style="display:flex;justify-content:center;margin:-6px 0 8px">${portrait(whoOf(uid), today, 120)}</div>${chips(today)}` : '<div class="empty">Сегодня пока ничего</div>'}
-      ${hist.length ? `<label class="lbl" style="margin-top:16px">Последние дни</label><div class="mood-hist">${hist.slice(0, 20).map((h) => `<div class="mh"><i style="background:${h.color}"></i><div class="grow"><b>${esc(h.label)} · ${h.level}%</b>${h.note ? `<span>«${esc(h.note)}»</span>` : ''}</div><small>${ago(h.ts)}</small></div>`).join('')}</div>` : ''}`,
+      ${hist.length ? `<label class="lbl" style="margin-top:16px">Последние дни</label><div class="mood-hist">${hist.slice(0, 20).map((h) => `<div class="mh"><i style="background:${h.color}"></i><div class="grow"><b>${esc(h.label)} · ${h.level}%</b></div><small>${ago(h.ts)}</small></div>`).join('')}</div>` : ''}`,
   });
 }
 
